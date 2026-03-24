@@ -370,8 +370,13 @@ function FeatureShowcase() {
       const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
 
       if (previewZoomTargetRef.current) {
-        viewport.scrollLeft = maxScrollLeft * previewZoomTargetRef.current.xRatio;
-        viewport.scrollTop = maxScrollTop * previewZoomTargetRef.current.yRatio;
+        const targetScrollLeft =
+          viewport.scrollWidth * previewZoomTargetRef.current.xRatio - viewport.clientWidth / 2;
+        const targetScrollTop =
+          viewport.scrollHeight * previewZoomTargetRef.current.yRatio - viewport.clientHeight / 2;
+
+        viewport.scrollLeft = Math.min(maxScrollLeft, Math.max(0, targetScrollLeft));
+        viewport.scrollTop = Math.min(maxScrollTop, Math.max(0, targetScrollTop));
       } else {
         viewport.scrollLeft = maxScrollLeft / 2;
         viewport.scrollTop = maxScrollTop / 2;
