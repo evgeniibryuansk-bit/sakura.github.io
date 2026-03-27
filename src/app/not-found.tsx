@@ -1,4 +1,4 @@
-const repoBasePath = "/sakura.github.io";
+const repoBasePath = process.env.NEXT_PUBLIC_REPO_BASE_PATH ?? "";
 const redirectScript = `
   (function () {
     var profilePattern = new RegExp("^" + ${JSON.stringify(repoBasePath)} + "/profile/\\\\d+$");

@@ -39,6 +39,7 @@ const firebaseModuleScript = `
 
   const LOGIN_MAX_LENGTH = 24;
   const LOGIN_MIN_LENGTH = 3;
+  const USER_UPDATE_EVENT = "sakura-user-update";
   const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
 
   const createFirebaseError = (code, message) => {
@@ -79,6 +80,44 @@ const firebaseModuleScript = `
       .slice(0, 8);
   };
 
+  const normalizePresence = (presence, fallbackPath = null) => ({
+    status: presence?.status === "online" ? "online" : "offline",
+    isOnline: Boolean(presence?.isOnline),
+    currentPath:
+      typeof presence?.currentPath === "string" && presence.currentPath
+        ? presence.currentPath
+        : fallbackPath,
+    lastSeenAt: typeof presence?.lastSeenAt === "string" ? presence.lastSeenAt : null,
+  });
+
+  const normalizeVisitHistory = (history) =>
+    Array.isArray(history)
+      ? history.filter(
+          (entry) =>
+            entry &&
+            typeof entry === "object" &&
+            typeof entry.timestamp === "string" &&
+            typeof entry.path === "string" &&
+            typeof entry.source === "string" &&
+            typeof entry.status === "string"
+        )
+      : [];
+
+  const buildVisitHistory = (existingHistory, nextEntry) =>
+    [nextEntry, ...normalizeVisitHistory(existingHistory)]
+      .filter(
+        (entry, index, entries) =>
+          index ===
+          entries.findIndex(
+            (candidate) =>
+              candidate.timestamp === entry.timestamp &&
+              candidate.path === entry.path &&
+              candidate.source === entry.source &&
+              candidate.status === entry.status
+          )
+      )
+      .slice(0, 12);
+
   const toUserSnapshot = (user, details = {}) =>
     user
       ? {
@@ -94,7 +133,9 @@ const firebaseModuleScript = `
             [],
           creationTime: user.metadata.creationTime ?? null,
           lastSignInTime: user.metadata.lastSignInTime ?? null,
-          loginHistory: Array.isArray(details.loginHistory) ? details.loginHistory : []
+          loginHistory: Array.isArray(details.loginHistory) ? details.loginHistory : [],
+          visitHistory: normalizeVisitHistory(details.visitHistory),
+          presence: normalizePresence(details.presence, window.location.pathname)
         }
       : null;
 
@@ -109,6 +150,20 @@ const firebaseModuleScript = `
     const userRefFor = (uid) => doc(db, "users", uid);
     const countersRef = doc(db, "meta", "counters");
     const usersCollection = collection(db, "users");
+    let stopPresenceTracking = () => {};
+    let lastPresenceSignature = "";
+    let lastPresenceAt = 0;
+
+    const publishUserSnapshot = (snapshot) => {
+      window.sakuraCurrentUserSnapshot = snapshot;
+      window.dispatchEvent(
+        new CustomEvent(USER_UPDATE_EVENT, {
+          detail: snapshot,
+        })
+      );
+
+      return snapshot;
+    };
 
     const findUserByLogin = async (loginLower) => {
       const snapshot = await getDocs(
@@ -194,6 +249,60 @@ const firebaseModuleScript = `
       return userData.email;
     };
 
+    const syncPresence = async (user, options = {}) => {
+      const userRef = userRefFor(user.uid);
+      const userSnapshot = await getDoc(userRef);
+      const existingData = userSnapshot.exists() ? userSnapshot.data() : {};
+      const nowIso = new Date().toISOString();
+      const currentPath =
+        typeof options.path === "string" && options.path
+          ? options.path
+          : window.location.pathname;
+      const isVisible = typeof document === "undefined" || document.visibilityState !== "hidden";
+      const isOnline = Boolean(navigator.onLine) && isVisible;
+      const status = isOnline ? "online" : "offline";
+      const source = typeof options.source === "string" ? options.source : "activity";
+      const signature = status + "|" + currentPath + "|" + source;
+      const previousVisits = normalizeVisitHistory(existingData?.visitHistory);
+      const lastVisit = previousVisits[0] ?? null;
+      const shouldRecordVisit =
+        Boolean(options.forceVisit) ||
+        !lastVisit ||
+        lastVisit.path !== currentPath ||
+        lastVisit.status !== status ||
+        Date.now() - lastPresenceAt > 5 * 60 * 1000 ||
+        lastPresenceSignature !== signature;
+      const presence = {
+        status,
+        isOnline,
+        currentPath,
+        lastSeenAt: nowIso,
+      };
+      const visitHistory = shouldRecordVisit
+        ? buildVisitHistory(previousVisits, {
+            timestamp: nowIso,
+            path: currentPath,
+            source,
+            status,
+          })
+        : previousVisits;
+
+      lastPresenceSignature = signature;
+      lastPresenceAt = Date.now();
+
+      await setDoc(
+        userRef,
+        {
+          presence,
+          visitHistory,
+          updatedAt: nowIso,
+        },
+        { merge: true }
+      );
+
+      return publishUserSnapshot(toUserSnapshot(user, { ...existingData, visitHistory, presence }));
+    };
+
     const ensureProfileRecord = async (user, options = {}) => {
       const userRef = userRefFor(user.uid);
       const userSnapshot = await getDoc(userRef);
@@ -223,6 +332,8 @@ const firebaseModuleScript = `
         user.metadata.creationTime ?? null,
         user.metadata.lastSignInTime ?? null
       );
+      const visitHistory = normalizeVisitHistory(existingData?.visitHistory);
+      const presence = normalizePresence(existingData?.presence, window.location.pathname);
       const profilePayload = {
         uid: user.uid,
         email: user.email ?? null,
@@ -238,6 +349,8 @@ const firebaseModuleScript = `
         creationTime: user.metadata.creationTime ?? null,
         lastSignInTime: user.metadata.lastSignInTime ?? null,
         loginHistory,
+        visitHistory,
+        presence,
         updatedAt: new Date().toISOString(),
       };
 
@@ -285,12 +398,71 @@ const firebaseModuleScript = `
     const resolveUserSnapshot = async (user, options = {}) => {
       const details = await ensureProfileRecord(user, options);
 
-      return toUserSnapshot(user, details);
+      return publishUserSnapshot(toUserSnapshot(user, details));
+    };
+
+    const startPresenceTracking = (user) => {
+      stopPresenceTracking();
+
+      const syncCurrentPresence = (source, forceVisit = false) =>
+        syncPresence(user, {
+          path: window.location.pathname,
+          source,
+          forceVisit,
+        }).catch((error) => {
+          console.error("Failed to sync presence:", error);
+        });
+
+      const handleOnline = () => {
+        syncCurrentPresence("network-online", true);
+      };
+
+      const handleOffline = () => {
+        syncCurrentPresence("network-offline", true);
+      };
+
+      const handleVisibilityChange = () => {
+        syncCurrentPresence(
+          document.visibilityState === "hidden" ? "tab-hidden" : "tab-visible",
+          true
+        );
+      };
+
+      const handlePageHide = () => {
+        syncCurrentPresence("page-hide", true);
+      };
+
+      const intervalId = window.setInterval(() => {
+        syncCurrentPresence("heartbeat");
+      }, 120000);
+
+      window.addEventListener("online", handleOnline);
+      window.addEventListener("offline", handleOffline);
+      window.addEventListener("visibilitychange", handleVisibilityChange);
+      window.addEventListener("pagehide", handlePageHide);
+
+      stopPresenceTracking = () => {
+        window.clearInterval(intervalId);
+        window.removeEventListener("online", handleOnline);
+        window.removeEventListener("offline", handleOffline);
+        window.removeEventListener("visibilitychange", handleVisibilityChange);
+        window.removeEventListener("pagehide", handlePageHide);
+      };
+
+      syncCurrentPresence("session-start", true);
+
+      return stopPresenceTracking;
     };
 
     const loginWithGoogle = async () => {
       const result = await signInWithPopup(auth, provider);
-      return resolveUserSnapshot(result.user);
+      const snapshot = await resolveUserSnapshot(result.user);
+      await syncPresence(result.user, {
+        path: window.location.pathname,
+        source: "google-login",
+        forceVisit: true,
+      });
+      return snapshot;
     };
 
     window.sakuraFirebaseAuth = {
@@ -302,24 +474,57 @@ const firebaseModuleScript = `
           displayName: resolvedLogin.login,
         });
 
-        return resolveUserSnapshot(credentials.user, {
+        const snapshot = await resolveUserSnapshot(credentials.user, {
           requestedLogin: resolvedLogin.login,
           preferredDisplayName: resolvedLogin.login,
         });
+        await syncPresence(credentials.user, {
+          path: window.location.pathname,
+          source: "register",
+          forceVisit: true,
+        });
+        return snapshot;
       },
       login: async (identifier, password) => {
         const email = await resolveEmailForLogin(identifier);
         const credentials = await signInWithEmailAndPassword(auth, email, password);
-        return resolveUserSnapshot(credentials.user);
+        const snapshot = await resolveUserSnapshot(credentials.user);
+        await syncPresence(credentials.user, {
+          path: window.location.pathname,
+          source: "login",
+          forceVisit: true,
+        });
+        return snapshot;
       },
       loginWithGoogle,
+      syncPresence: async (options = {}) => {
+        const user = auth.currentUser;
+
+        if (!user) {
+          return publishUserSnapshot(null);
+        }
+
+        return syncPresence(user, options);
+      },
       logout: async () => {
+        stopPresenceTracking();
         await signOut(auth);
+        publishUserSnapshot(null);
       },
       onAuthStateChanged: (callback) =>
-        onAuthStateChanged(auth, async (user) =>
-          callback(user ? await resolveUserSnapshot(user) : null)
-        )
+        onAuthStateChanged(auth, async (user) => {
+          stopPresenceTracking();
+
+          if (!user) {
+            callback(publishUserSnapshot(null));
+            return;
+          }
+
+          const snapshot = await resolveUserSnapshot(user);
+
+          callback(snapshot);
+          startPresenceTracking(user);
+        })
     };
     window.loginWithGoogle = loginWithGoogle;
 

@@ -18,7 +18,7 @@ type ShowcaseSlide = {
   mediaSrc: string;
 };
 
-const repoBasePath = "/sakura.github.io";
+const repoBasePath = process.env.NEXT_PUBLIC_REPO_BASE_PATH ?? "";
 const assetVersion = "20260324-1";
 
 function withRepoBasePath(path: string, bustCache = false) {
@@ -78,6 +78,20 @@ type FirebaseClientConfig = {
 
 type AuthMode = "login" | "register";
 
+type VisitHistoryEntry = {
+  timestamp: string;
+  path: string;
+  source: string;
+  status: "online" | "offline";
+};
+
+type PresenceSnapshot = {
+  status: "online" | "offline";
+  isOnline: boolean;
+  currentPath: string | null;
+  lastSeenAt: string | null;
+};
+
 type AuthUserSnapshot = {
   uid: string;
   email: string | null;
@@ -89,6 +103,8 @@ type AuthUserSnapshot = {
   creationTime: string | null;
   lastSignInTime: string | null;
   loginHistory: string[];
+  visitHistory: VisitHistoryEntry[];
+  presence: PresenceSnapshot | null;
 };
 
 type FirebaseAuthBridge = {
@@ -99,6 +115,11 @@ type FirebaseAuthBridge = {
     email: string;
     password: string;
   }) => Promise<AuthUserSnapshot | null>;
+  syncPresence: (options?: {
+    path?: string;
+    source?: string;
+    forceVisit?: boolean;
+  }) => Promise<AuthUserSnapshot | null>;
   logout: () => Promise<void>;
   onAuthStateChanged: (callback: (user: AuthUserSnapshot | null) => void) => () => void;
 };
@@ -107,6 +128,7 @@ declare global {
   interface Window {
     firebaseConfig?: FirebaseClientConfig;
     loginWithGoogle?: () => Promise<AuthUserSnapshot | null>;
+    sakuraCurrentUserSnapshot?: AuthUserSnapshot | null;
     sakuraFirebaseAuth?: FirebaseAuthBridge;
     sakuraFirebaseAuthError?: string;
   }
@@ -114,6 +136,7 @@ declare global {
 
 const AUTH_READY_EVENT = "sakura-auth-ready";
 const AUTH_ERROR_EVENT = "sakura-auth-error";
+const USER_UPDATE_EVENT = "sakura-user-update";
 const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
 
 function getFirebaseErrorMessage(error: unknown) {
@@ -312,6 +335,7 @@ function HeaderAuth() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isGoogleSubmitting, setIsGoogleSubmitting] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const currentUserId = currentUser?.uid ?? null;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -324,6 +348,7 @@ function HeaderAuth() {
       if (window.sakuraFirebaseAuth) {
         setAuthReady(true);
         setAuthLoadError(null);
+        setCurrentUser(window.sakuraCurrentUserSnapshot ?? null);
         unsubscribe();
         unsubscribe = window.sakuraFirebaseAuth.onAuthStateChanged((user) => {
           setCurrentUser(user);
@@ -338,6 +363,10 @@ function HeaderAuth() {
 
     const handleReady = () => {
       syncAuthBridge();
+    };
+
+    const handleUserUpdate = () => {
+      setCurrentUser(window.sakuraCurrentUserSnapshot ?? null);
     };
 
     const handleError = () => {
@@ -358,14 +387,30 @@ function HeaderAuth() {
     syncAuthBridge();
     window.addEventListener(AUTH_READY_EVENT, handleReady);
     window.addEventListener(AUTH_ERROR_EVENT, handleError);
+    window.addEventListener(USER_UPDATE_EVENT, handleUserUpdate);
 
     return () => {
       window.clearTimeout(timeoutId);
       window.removeEventListener(AUTH_READY_EVENT, handleReady);
       window.removeEventListener(AUTH_ERROR_EVENT, handleError);
+      window.removeEventListener(USER_UPDATE_EVENT, handleUserUpdate);
       unsubscribe();
     };
   }, []);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !currentUserId || !window.sakuraFirebaseAuth) {
+      return;
+    }
+
+    window.sakuraFirebaseAuth
+      .syncPresence({
+        path: window.location.pathname,
+        source: "home-view",
+        forceVisit: true,
+      })
+      .catch(() => {});
+  }, [currentUserId]);
 
   useEffect(() => {
     if (!isModalOpen) {

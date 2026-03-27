@@ -16,6 +16,20 @@ type FirebaseClientConfig = {
   measurementId: string;
 };
 
+type VisitHistoryEntry = {
+  timestamp: string;
+  path: string;
+  source: string;
+  status: "online" | "offline";
+};
+
+type PresenceSnapshot = {
+  status: "online" | "offline";
+  isOnline: boolean;
+  currentPath: string | null;
+  lastSeenAt: string | null;
+};
+
 type AuthUserSnapshot = {
   uid: string;
   email: string | null;
@@ -27,6 +41,8 @@ type AuthUserSnapshot = {
   creationTime: string | null;
   lastSignInTime: string | null;
   loginHistory: string[];
+  visitHistory: VisitHistoryEntry[];
+  presence: PresenceSnapshot | null;
 };
 
 type FirebaseAuthBridge = {
@@ -37,6 +53,11 @@ type FirebaseAuthBridge = {
     email: string;
     password: string;
   }) => Promise<AuthUserSnapshot | null>;
+  syncPresence: (options?: {
+    path?: string;
+    source?: string;
+    forceVisit?: boolean;
+  }) => Promise<AuthUserSnapshot | null>;
   logout: () => Promise<void>;
   onAuthStateChanged: (callback: (user: AuthUserSnapshot | null) => void) => () => void;
 };
@@ -44,6 +65,7 @@ type FirebaseAuthBridge = {
 declare global {
   interface Window {
     firebaseConfig?: FirebaseClientConfig;
+    sakuraCurrentUserSnapshot?: AuthUserSnapshot | null;
     sakuraFirebaseAuth?: FirebaseAuthBridge;
     sakuraFirebaseAuthError?: string;
   }
@@ -51,8 +73,9 @@ declare global {
 
 const AUTH_READY_EVENT = "sakura-auth-ready";
 const AUTH_ERROR_EVENT = "sakura-auth-error";
+const USER_UPDATE_EVENT = "sakura-user-update";
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
-const repoBasePath = "/sakura.github.io";
+const repoBasePath = process.env.NEXT_PUBLIC_REPO_BASE_PATH ?? "";
 
 function formatProvider(providerId: string) {
   switch (providerId) {
@@ -103,6 +126,7 @@ export default function ProfilePage() {
   const [authLoadError, setAuthLoadError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUserSnapshot | null>(null);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
+  const currentUserId = currentUser?.uid ?? null;
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -115,6 +139,7 @@ export default function ProfilePage() {
       if (window.sakuraFirebaseAuth) {
         setAuthReady(true);
         setAuthLoadError(null);
+        setCurrentUser(window.sakuraCurrentUserSnapshot ?? null);
         unsubscribe();
         unsubscribe = window.sakuraFirebaseAuth.onAuthStateChanged((user) => {
           setCurrentUser(user);
@@ -129,6 +154,10 @@ export default function ProfilePage() {
 
     const handleReady = () => {
       syncAuthBridge();
+    };
+
+    const handleUserUpdate = () => {
+      setCurrentUser(window.sakuraCurrentUserSnapshot ?? null);
     };
 
     const handleError = () => {
@@ -149,11 +178,13 @@ export default function ProfilePage() {
     syncAuthBridge();
     window.addEventListener(AUTH_READY_EVENT, handleReady);
     window.addEventListener(AUTH_ERROR_EVENT, handleError);
+    window.addEventListener(USER_UPDATE_EVENT, handleUserUpdate);
 
     return () => {
       window.clearTimeout(timeoutId);
       window.removeEventListener(AUTH_READY_EVENT, handleReady);
       window.removeEventListener(AUTH_ERROR_EVENT, handleError);
+      window.removeEventListener(USER_UPDATE_EVENT, handleUserUpdate);
       unsubscribe();
     };
   }, []);
@@ -174,6 +205,40 @@ export default function ProfilePage() {
       window.history.replaceState(null, "", desiredPath);
     }
   }, [currentUser?.profileId]);
+
+  useEffect(() => {
+    if (typeof window === "undefined" || !currentUserId || !window.sakuraFirebaseAuth) {
+      return;
+    }
+
+    const syncCurrentPage = (source: string, forceVisit = false) => {
+      window.sakuraFirebaseAuth
+        ?.syncPresence({
+          path: window.location.pathname,
+          source,
+          forceVisit,
+        })
+        .catch(() => {});
+    };
+
+    syncCurrentPage("profile-view", true);
+
+    const handleOnline = () => {
+      syncCurrentPage("profile-online", true);
+    };
+
+    const handleOffline = () => {
+      syncCurrentPage("profile-offline", true);
+    };
+
+    window.addEventListener("online", handleOnline);
+    window.addEventListener("offline", handleOffline);
+
+    return () => {
+      window.removeEventListener("online", handleOnline);
+      window.removeEventListener("offline", handleOffline);
+    };
+  }, [currentUserId]);
 
   const handleLogout = async () => {
     if (!window.sakuraFirebaseAuth) {
@@ -200,11 +265,8 @@ export default function ProfilePage() {
 
   const userInitials = currentUser ? buildInitials(currentUser) : "SA";
   const primaryName = currentUser ? buildPrimaryName(currentUser) : "Sakura User";
-  const recentSignIns = currentUser?.loginHistory?.length
-    ? currentUser.loginHistory
-    : [currentUser?.lastSignInTime, currentUser?.creationTime].filter(
-        (value): value is string => Boolean(value)
-      );
+  const siteVisits = currentUser?.visitHistory?.length ? currentUser.visitHistory : [];
+  const avatarMode = currentUser?.photoURL ? "Cloud Avatar" : "Generated Avatar";
   const privateSections = [
     {
       title: "Private Builds",
@@ -220,21 +282,11 @@ export default function ProfilePage() {
     },
   ];
   const projectId = typeof window !== "undefined" ? window.firebaseConfig?.projectId : "sakura-bfa74";
-  const profileLabel = currentUser?.profileId ? `Profile #${currentUser.profileId}` : "Profile";
 
   return (
     <main className="min-h-screen bg-[radial-gradient(circle_at_top,rgba(255,183,197,0.14),transparent_35%),linear-gradient(180deg,#090909_0%,#040404_100%)] px-5 py-8 text-white sm:px-8">
       <div className="mx-auto max-w-6xl">
-        <nav className="mb-8 flex flex-col gap-4 rounded-[28px] border border-[#1b1b1b] bg-black/40 px-6 py-5 backdrop-blur-sm sm:flex-row sm:items-center sm:justify-between">
-          <div>
-            <p className="font-mono text-[10px] uppercase tracking-[0.38em] text-[#ffb7c5]">
-              Sakura Account
-            </p>
-            <h1 className="mt-2 text-3xl font-black uppercase tracking-tighter text-white">
-              {profileLabel}
-            </h1>
-          </div>
-
+        <nav className="mb-8 flex flex-wrap items-center justify-end gap-3 rounded-[28px] border border-[#1b1b1b] bg-black/40 px-6 py-5 backdrop-blur-sm">
           <div className="flex flex-wrap items-center gap-3">
             <Link
               href="/"
@@ -427,6 +479,33 @@ export default function ProfilePage() {
             >
               <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
+                  Avatar
+                </p>
+                <div className="mt-5 flex items-center gap-4 rounded-[24px] border border-[#1d1d1d] bg-[#090909] p-4">
+                  {currentUser.photoURL ? (
+                    <img
+                      src={currentUser.photoURL}
+                      alt={primaryName}
+                      className="h-16 w-16 rounded-[20px] border border-[#2c2023] object-cover"
+                    />
+                  ) : (
+                    <div className="flex h-16 w-16 items-center justify-center rounded-[20px] border border-[#2c2023] bg-[#1a1012] text-lg font-black uppercase text-[#ffb7c5]">
+                      {userInitials}
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <p className="text-sm font-semibold text-white">{avatarMode}</p>
+                    <p className="mt-1 text-xs leading-relaxed text-gray-400">
+                      {currentUser.photoURL
+                        ? "Используется загруженный аватар аккаунта."
+                        : "Если у пользователя нет фото, показываются инициалы как fallback-аватар."}
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
                   Providers
                 </p>
                 <div className="mt-5 flex flex-wrap gap-3">
@@ -443,35 +522,40 @@ export default function ProfilePage() {
 
               <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
-                  Account Status
-                </p>
-                <div className="mt-5 flex items-center gap-3 rounded-[24px] border border-[#1f3b2f] bg-[#0d1713] px-4 py-4">
-                  <span className="h-3 w-3 rounded-full bg-[#8ce5b2] shadow-[0_0_18px_rgba(140,229,178,0.55)]"></span>
-                  <div>
-                    <p className="text-sm font-semibold text-[#d6f2e2]">Session Active</p>
-                    <p className="mt-1 text-xs text-[#9ec7b3]">
-                      Аккаунт успешно подключен к Firebase Auth и приватным разделам профиля.
-                    </p>
-                  </div>
-                </div>
-              </div>
-
-              <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
-                <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
-                  Login History
+                  Site Visit History
                 </p>
                 <div className="mt-5 space-y-3">
-                  {recentSignIns.map((entry, index) => (
-                    <div
-                      key={`${entry}-${index}`}
-                      className="rounded-[22px] border border-[#1d1d1d] bg-[#090909] px-4 py-3"
-                    >
-                      <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-gray-600">
-                        {index === 0 ? "Latest Session" : `Previous #${index}`}
-                      </p>
-                      <p className="mt-2 text-sm text-gray-300">{formatTimestamp(entry)}</p>
+                  {siteVisits.length ? (
+                    siteVisits.map((entry, index) => (
+                      <div
+                        key={`${entry.timestamp}-${index}`}
+                        className="rounded-[22px] border border-[#1d1d1d] bg-[#090909] px-4 py-3"
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-gray-600">
+                            {index === 0 ? "Latest Visit" : `Visit #${index + 1}`}
+                          </p>
+                          <span
+                            className={`inline-flex rounded-full px-2.5 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
+                              entry.status === "online"
+                                ? "border border-[#1f3b2f] bg-[#0d1713] text-[#8ce5b2]"
+                                : "border border-[#3b2428] bg-[#170f11] text-[#ff9aa9]"
+                            }`}
+                          >
+                            {entry.status}
+                          </span>
+                        </div>
+                        <p className="mt-2 text-sm text-gray-300">{formatTimestamp(entry.timestamp)}</p>
+                        <p className="mt-1 text-xs text-gray-500">
+                          {entry.path} · {entry.source}
+                        </p>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="rounded-[22px] border border-[#1d1d1d] bg-[#090909] px-4 py-3 text-sm text-gray-400">
+                      История посещений появится после первой синхронизации активности.
                     </div>
-                  ))}
+                  )}
                 </div>
               </div>
 
