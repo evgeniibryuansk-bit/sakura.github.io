@@ -916,9 +916,6 @@ export default function Home() {
             >
               Download Latest
             </a>
-            <button className="border border-[#222] bg-[#111] px-10 py-4 text-sm font-bold uppercase text-gray-400 transition hover:border-gray-500">
-              View Wiki
-            </button>
           </div>
         </section>
 

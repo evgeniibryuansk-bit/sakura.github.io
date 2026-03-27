@@ -22,6 +22,7 @@ type UserProfile = {
 
 type Bridge = {
   getProfileById: (profileId: number) => Promise<UserProfile | null>;
+  updateProfileRoles: (profileId: number, roles: string[]) => Promise<UserProfile | null>;
   updateAvatar: (file: File) => Promise<UserProfile | null>;
   deleteAvatar: () => Promise<UserProfile | null>;
   syncPresence: (options?: { path?: string; source?: string; forceVisit?: boolean }) => Promise<UserProfile | null>;
@@ -201,6 +202,30 @@ const roleBadgeStyle = (role: string): CSSProperties => {
     boxShadow: "0 0 18px rgba(34,197,94,0.22)",
   };
 };
+const ROLE_MANAGER_NAMES = new Set(["root", "super administrator", "co-owner"]);
+const EDITABLE_ROLE_OPTIONS = [
+  "root",
+  "super administrator",
+  "co-owner",
+  "administrator",
+  "moderator",
+  "tester",
+  "subscriber",
+  "user",
+];
+const normalizeRoleSelection = (roles: string[]) => {
+  const nextRoles = roles
+    .map((role) => normalizeRoleName(role))
+    .filter(Boolean);
+
+  const uniqueRoles = nextRoles.filter(
+    (role, index, entries) => index === entries.findIndex((candidate) => candidate === role)
+  );
+
+  return uniqueRoles.length ? uniqueRoles : ["user"];
+};
+const canManageRoles = (roles: string[]) =>
+  normalizeRoleSelection(roles).some((role) => ROLE_MANAGER_NAMES.has(normalizeRoleName(role)));
 const nameOf = (user: UserProfile) =>
   user.displayName?.trim() ||
   (typeof user.profileId === "number" ? `Profile #${user.profileId}` : "Sakura User");
@@ -264,6 +289,10 @@ export default function ProfilePage() {
   const [isAvatarDeleting, setIsAvatarDeleting] = useState(false);
   const [avatarError, setAvatarError] = useState<string | null>(null);
   const [avatarSuccess, setAvatarSuccess] = useState<string | null>(null);
+  const [draftRoles, setDraftRoles] = useState<string[]>([]);
+  const [isRolesSaving, setIsRolesSaving] = useState(false);
+  const [rolesError, setRolesError] = useState<string | null>(null);
+  const [rolesSuccess, setRolesSuccess] = useState<string | null>(null);
 
   useEffect(() => {
     setHasHydrated(true);
@@ -342,6 +371,8 @@ export default function ProfilePage() {
   const isOwner = Boolean(visibleCurrentUser && profile && visibleCurrentUser.uid === profile.uid);
   const activeProfile = profile;
   const profileRoles = activeProfile?.roles?.length ? activeProfile.roles : ["user"];
+  const normalizedProfileRoles = normalizeRoleSelection(profileRoles);
+  const canManageRoleAssignments = Boolean(visibleCurrentUser && canManageRoles(visibleCurrentUser.roles));
   const shouldShowPendingState =
     !authError &&
     !activeProfile &&
@@ -364,6 +395,24 @@ export default function ProfilePage() {
 
   const primaryName = activeProfile ? nameOf(activeProfile) : "Sakura User";
   const initials = activeProfile ? initialsOf(activeProfile) : "SA";
+  const activeProfileRoleSignature = activeProfile?.roles?.join("|") ?? "";
+
+  useEffect(() => {
+    if (!activeProfile) {
+      setDraftRoles([]);
+      setRolesError(null);
+      setRolesSuccess(null);
+      return;
+    }
+
+    setDraftRoles(normalizeRoleSelection(activeProfile.roles));
+    setRolesError(null);
+    setRolesSuccess(null);
+  }, [activeProfile, activeProfileRoleSignature]);
+
+  const hasRoleChanges =
+    normalizeRoleSelection(draftRoles).join("|") !== normalizedProfileRoles.join("|");
+
   const handleLogout = async () => {
     const bridge = getWindowState().sakuraFirebaseAuth;
     if (!bridge) return;
@@ -409,6 +458,65 @@ export default function ProfilePage() {
       setAvatarError(avatarErrorMessage(error));
     } finally {
       setIsAvatarDeleting(false);
+    }
+  };
+
+  const toggleRole = (role: string) => {
+    setRolesError(null);
+    setRolesSuccess(null);
+    setDraftRoles((currentRoles) => {
+      const normalizedTarget = normalizeRoleName(role);
+      const hasRole = currentRoles.some(
+        (currentRole) => normalizeRoleName(currentRole) === normalizedTarget
+      );
+
+      if (hasRole) {
+        const nextRoles = currentRoles.filter(
+          (currentRole) => normalizeRoleName(currentRole) !== normalizedTarget
+        );
+
+        return nextRoles.length ? nextRoles : ["user"];
+      }
+
+      return normalizeRoleSelection([...currentRoles, role]);
+    });
+  };
+
+  const resetRoles = () => {
+    setDraftRoles(normalizedProfileRoles);
+    setRolesError(null);
+    setRolesSuccess(null);
+  };
+
+  const handleRolesSave = async () => {
+    const bridge = getWindowState().sakuraFirebaseAuth;
+
+    if (!bridge || !activeProfile?.profileId || !canManageRoleAssignments) {
+      return;
+    }
+
+    setRolesError(null);
+    setRolesSuccess(null);
+    setIsRolesSaving(true);
+
+    try {
+      const snapshot = await bridge.updateProfileRoles(
+        activeProfile.profileId,
+        normalizeRoleSelection(draftRoles)
+      );
+
+      if (snapshot) {
+        setProfile(snapshot);
+        if (visibleCurrentUser?.uid === snapshot.uid) {
+          setCurrentUser(snapshot);
+        }
+      }
+
+      setRolesSuccess("Roles updated.");
+    } catch (error) {
+      setRolesError(error instanceof Error ? error.message : "Could not update roles.");
+    } finally {
+      setIsRolesSaving(false);
     }
   };
 
@@ -463,6 +571,22 @@ export default function ProfilePage() {
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Roles</p>
                 <div className="mt-5 flex flex-wrap gap-3">{profileRoles.map((role) => <span key={role} style={{ ...roleBadgeStyle(role), ...roleBadgeTextStyle }} className="inline-flex rounded-full border px-4 py-2 text-[11px] font-bold">{roleBadgeLabel(role)}</span>)}</div>
               </div>
+
+              {canManageRoleAssignments && activeProfile?.profileId ? <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Role Access</p>
+                <p className="mt-3 text-xs leading-relaxed text-gray-400">You can add or remove roles for this profile. Root, super administrator, and co-owner accounts can save changes.</p>
+                <div className="mt-5 flex flex-wrap gap-3">{EDITABLE_ROLE_OPTIONS.map((role) => {
+                  const isSelected = draftRoles.some((draftRole) => normalizeRoleName(draftRole) === normalizeRoleName(role));
+
+                  return <button key={role} type="button" onClick={() => toggleRole(role)} className={`inline-flex rounded-full border px-4 py-2 text-[11px] font-bold tracking-[0.14em] transition ${isSelected ? "" : "opacity-70 hover:opacity-100"}`} style={isSelected ? { ...roleBadgeStyle(role), ...roleBadgeTextStyle } : { ...roleBadgeTextStyle, borderColor: "#2c2c2c", backgroundColor: "#101010", color: "#9ca3af", boxShadow: "none" }}>{roleBadgeLabel(role)}</button>;
+                })}</div>
+                <div className="mt-5 flex flex-wrap items-center gap-3">
+                  <button type="button" onClick={handleRolesSave} disabled={isRolesSaving || !hasRoleChanges} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">{isRolesSaving ? "Saving..." : "Save Roles"}</button>
+                  <button type="button" onClick={resetRoles} disabled={isRolesSaving || !hasRoleChanges} className="inline-flex items-center justify-center rounded-full border border-[#2b1b1e] bg-[#140d11] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Reset</button>
+                </div>
+                {rolesError ? <p className="mt-3 text-xs leading-relaxed text-[#ff9aa9]">{rolesError}</p> : null}
+                {rolesSuccess ? <p className="mt-3 text-xs leading-relaxed text-[#8ce5b2]">{rolesSuccess}</p> : null}
+              </div> : null}
 
               <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Avatar</p>

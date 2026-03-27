@@ -290,6 +290,10 @@ const firebaseModuleScript = `
       : ["user"];
   };
 
+  const ROLE_MANAGER_NAMES = new Set(["root", "super administrator", "co-owner"]);
+  const canManageRoles = (roles) =>
+    normalizeRoles(roles).some((role) => ROLE_MANAGER_NAMES.has(normalizeRoleName(role)));
+
   const buildLoginHistory = (existingHistory, creationTime, lastSignInTime) => {
     const previousEntries = Array.isArray(existingHistory)
       ? existingHistory.filter((entry) => typeof entry === "string")
@@ -1037,6 +1041,77 @@ const firebaseModuleScript = `
       );
     };
 
+    const updateProfileRoles = async (profileId, nextRoles) => {
+      const user = auth.currentUser;
+
+      if (!user || user.isAnonymous) {
+        throw createFirebaseError("auth/no-current-user", "Sign in again to manage roles.");
+      }
+
+      if (!Number.isInteger(profileId) || profileId <= 0) {
+        throw createFirebaseError("profile/invalid-id", "Profile id must be a positive number.");
+      }
+
+      if (!canManageRoles(window.sakuraCurrentUserSnapshot?.roles ?? [])) {
+        throw createFirebaseError(
+          "roles/forbidden",
+          "Only root, super administrator, or co-owner can manage user roles."
+        );
+      }
+
+      const targetDoc = await findUserByProfileId(profileId);
+
+      if (!targetDoc) {
+        return null;
+      }
+
+      const roles = normalizeRoles(nextRoles);
+
+      try {
+        await setDoc(
+          userRefFor(targetDoc.id),
+          {
+            roles,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        if (!isPermissionDeniedError(error)) {
+          throw error;
+        }
+
+        throw createFirebaseError(
+          "roles/persist-failed",
+          "Roles could not be updated. Check Firestore rules for privileged users."
+        );
+      }
+
+      const refreshedSnapshot = await getDoc(userRefFor(targetDoc.id));
+      const snapshot = toStoredUserSnapshot(
+        targetDoc.id,
+        refreshedSnapshot.exists()
+          ? refreshedSnapshot.data()
+          : {
+              ...targetDoc.data(),
+              roles,
+            }
+      );
+
+      if (
+        window.sakuraCurrentUserSnapshot &&
+        !window.sakuraCurrentUserSnapshot.isAnonymous &&
+        window.sakuraCurrentUserSnapshot.uid === snapshot.uid
+      ) {
+        publishUserSnapshot({
+          ...window.sakuraCurrentUserSnapshot,
+          roles: snapshot.roles,
+        });
+      }
+
+      return snapshot;
+    };
+
     window.sakuraFirebaseAuth = {
       register: async ({ login, email, password }) => {
         const credentials = await createUserWithEmailAndPassword(auth, email, password);
@@ -1086,6 +1161,7 @@ const firebaseModuleScript = `
       },
       loginWithGoogle,
       getProfileById,
+      updateProfileRoles,
       updateAvatar,
       deleteAvatar,
       syncPresence: async (options = {}) => {
