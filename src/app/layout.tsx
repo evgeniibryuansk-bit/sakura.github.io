@@ -47,6 +47,8 @@ const firebaseModuleScript = `
   const LOGIN_MAX_LENGTH = 24;
   const LOGIN_MIN_LENGTH = 3;
   const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
+  const AVATAR_INLINE_SIZE = 256;
+  const AVATAR_UPLOAD_TIMEOUT_MS = 15000;
   const USER_UPDATE_EVENT = "sakura-user-update";
   const AVATAR_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
   const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
@@ -55,6 +57,93 @@ const firebaseModuleScript = `
     const error = new Error(message);
     error.code = code;
     return error;
+  };
+
+  const withTimeout = (promise, timeoutMs, createTimeoutError) =>
+    new Promise((resolve, reject) => {
+      const timeoutId = window.setTimeout(() => {
+        reject(createTimeoutError());
+      }, timeoutMs);
+
+      promise.then(
+        (value) => {
+          window.clearTimeout(timeoutId);
+          resolve(value);
+        },
+        (error) => {
+          window.clearTimeout(timeoutId);
+          reject(error);
+        }
+      );
+    });
+
+  const readFileAsDataUrl = (file) =>
+    new Promise((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () => {
+        if (typeof reader.result === "string" && reader.result) {
+          resolve(reader.result);
+          return;
+        }
+
+        reject(createFirebaseError("storage/no-preview", "Could not prepare the selected image."));
+      };
+
+      reader.onerror = () => {
+        reject(createFirebaseError("storage/file-read-failed", "Could not read the selected image."));
+      };
+
+      reader.readAsDataURL(file);
+    });
+
+  const loadImageFromDataUrl = (src) =>
+    new Promise((resolve, reject) => {
+      const image = new Image();
+
+      image.onload = () => resolve(image);
+      image.onerror = () =>
+        reject(createFirebaseError("storage/image-load-failed", "Could not decode the selected image."));
+      image.src = src;
+    });
+
+  const createInlineAvatarDataUrl = async (file) => {
+    const source = await readFileAsDataUrl(file);
+    const image = await loadImageFromDataUrl(source);
+    const width = image.naturalWidth || image.width || 0;
+    const height = image.naturalHeight || image.height || 0;
+
+    if (!width || !height) {
+      throw createFirebaseError("storage/invalid-image-size", "The selected image is empty.");
+    }
+
+    const cropSize = Math.min(width, height);
+    const offsetX = Math.max(0, Math.floor((width - cropSize) / 2));
+    const offsetY = Math.max(0, Math.floor((height - cropSize) / 2));
+    const canvas = document.createElement("canvas");
+
+    canvas.width = AVATAR_INLINE_SIZE;
+    canvas.height = AVATAR_INLINE_SIZE;
+
+    const context = canvas.getContext("2d");
+
+    if (!context) {
+      throw createFirebaseError("storage/no-canvas-context", "Could not prepare the avatar preview.");
+    }
+
+    context.drawImage(
+      image,
+      offsetX,
+      offsetY,
+      cropSize,
+      cropSize,
+      0,
+      0,
+      AVATAR_INLINE_SIZE,
+      AVATAR_INLINE_SIZE
+    );
+
+    return canvas.toDataURL("image/jpeg", 0.86);
   };
 
   const getErrorCode = (error) =>
@@ -150,14 +239,15 @@ const firebaseModuleScript = `
         : preferredDisplayName || deriveLoginSeed(user, preferredDisplayName);
     const fallbackLogin = sanitizeLogin(requestedLogin) || null;
 
-    return {
-      login: fallbackLogin,
-      loginLower: fallbackLogin ? normalizeLogin(fallbackLogin) : null,
-      displayName: preferredDisplayName ?? user.displayName ?? fallbackLogin,
-      profileId: null,
-      providerIds: getProviderIds(user),
-      loginHistory: buildLoginHistory(
-        [],
+      return {
+        login: fallbackLogin,
+        loginLower: fallbackLogin ? normalizeLogin(fallbackLogin) : null,
+        displayName: preferredDisplayName ?? user.displayName ?? fallbackLogin,
+        profileId: null,
+        photoURL: user.photoURL ?? null,
+        providerIds: getProviderIds(user),
+        loginHistory: buildLoginHistory(
+          [],
         user.metadata.creationTime ?? null,
         user.metadata.lastSignInTime ?? null
       ),
@@ -171,7 +261,7 @@ const firebaseModuleScript = `
     loginLower: details.loginLower ?? null,
     displayName: details.displayName ?? user.displayName ?? details.login ?? null,
     profileId: typeof details.profileId === "number" ? details.profileId : null,
-    photoURL: user.photoURL ?? details.photoURL ?? null,
+    photoURL: details.photoURL ?? user.photoURL ?? null,
     providerIds: Array.isArray(details.providerIds) ? details.providerIds : getProviderIds(user),
     loginHistory: Array.isArray(details.loginHistory)
       ? details.loginHistory
@@ -188,7 +278,7 @@ const firebaseModuleScript = `
           login: details.login ?? null,
           displayName: user.displayName ?? details.displayName ?? details.login ?? null,
           profileId: typeof details.profileId === "number" ? details.profileId : null,
-          photoURL: user.photoURL ?? null,
+          photoURL: details.photoURL ?? user.photoURL ?? null,
           providerIds:
             user.providerData.map((provider) => provider?.providerId).filter(Boolean) ??
             details.providerIds ??
@@ -606,25 +696,57 @@ const firebaseModuleScript = `
         throw createFirebaseError("storage/file-too-large", "Avatar must be 5 MB or smaller.");
       }
 
+      const inlinePhotoURL = await createInlineAvatarDataUrl(file);
       const rawExtension = file.name.includes(".") ? file.name.split(".").pop() : "";
       const safeExtension = String(rawExtension ?? "")
         .toLowerCase()
         .replace(/[^a-z0-9]/g, "") || "png";
-      const avatarFileRef = storageRef(
-        storage,
-        "avatars/" + user.uid + "/avatar-" + Date.now() + "." + safeExtension
-      );
+      let photoURL = inlinePhotoURL;
+      let syncedToAuthProfile = false;
+      let persistedInFirestore = false;
 
-      await uploadBytes(avatarFileRef, file, {
-        contentType: file.type,
-        cacheControl: "public,max-age=31536000",
-      });
+      try {
+        const avatarFileRef = storageRef(
+          storage,
+          "avatars/" + user.uid + "/avatar-" + Date.now() + "." + safeExtension
+        );
 
-      const photoURL = await getDownloadURL(avatarFileRef);
+        await withTimeout(
+          uploadBytes(avatarFileRef, file, {
+            contentType: file.type,
+            cacheControl: "public,max-age=31536000",
+          }),
+          AVATAR_UPLOAD_TIMEOUT_MS,
+          () =>
+            createFirebaseError(
+              "storage/upload-timeout",
+              "Avatar upload took too long. Saving a profile copy instead."
+            )
+        );
 
-      await updateProfile(user, {
-        photoURL,
-      });
+        photoURL = await withTimeout(
+          getDownloadURL(avatarFileRef),
+          AVATAR_UPLOAD_TIMEOUT_MS,
+          () =>
+            createFirebaseError(
+              "storage/url-timeout",
+              "Avatar upload took too long. Saving a profile copy instead."
+            )
+        );
+      } catch (error) {
+        photoURL = inlinePhotoURL;
+      }
+
+      try {
+        await updateProfile(user, {
+          photoURL,
+        });
+        syncedToAuthProfile = true;
+      } catch (error) {
+        if (photoURL !== inlinePhotoURL) {
+          throw error;
+        }
+      }
 
       try {
         await setDoc(
@@ -635,10 +757,18 @@ const firebaseModuleScript = `
           },
           { merge: true }
         );
+        persistedInFirestore = true;
       } catch (error) {
-        if (!isPermissionDeniedError(error)) {
+        if (!isPermissionDeniedError(error) || !syncedToAuthProfile) {
           throw error;
         }
+      }
+
+      if (!syncedToAuthProfile && !persistedInFirestore) {
+        throw createFirebaseError(
+          "avatar/persist-failed",
+          "Avatar could not be saved. Check Firebase Storage and Firestore rules."
+        );
       }
 
       const currentDetails = window.sakuraCurrentUserSnapshot

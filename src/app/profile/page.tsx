@@ -134,9 +134,20 @@ function getAvatarUploadErrorMessage(error: unknown) {
       return "Файл должен быть не больше 5 МБ.";
     case "storage/invalid-file":
       return "Сначала выберите изображение.";
+    case "storage/upload-timeout":
+    case "storage/url-timeout":
+      return "Storage завис или отвечает слишком долго. Сайт попробовал сохранить аватар резервным способом.";
+    case "storage/file-read-failed":
+    case "storage/image-load-failed":
+    case "storage/no-preview":
+    case "storage/invalid-image-size":
+    case "storage/no-canvas-context":
+      return "Не удалось подготовить изображение. Попробуйте другой файл.";
     case "storage/unauthorized":
     case "permission-denied":
       return "Firebase Storage или Firestore не разрешают сохранить аватар. Проверьте rules.";
+    case "avatar/persist-failed":
+      return "Сайт не смог сохранить аватар ни в Storage, ни в профиль пользователя.";
     case "auth/no-current-user":
       return "Сессия истекла. Войдите снова и повторите загрузку.";
     default:
@@ -331,7 +342,7 @@ export default function ProfilePage() {
 
   const userInitials = currentUser ? buildInitials(currentUser) : "SA";
   const primaryName = currentUser ? buildPrimaryName(currentUser) : "Sakura User";
-  const avatarMode = currentUser?.photoURL ? "Cloud Avatar" : "Generated Avatar";
+  const avatarMode = currentUser?.photoURL ? "Custom Avatar" : "Generated Avatar";
   const privateSections = [
     {
       title: "Private Builds",
