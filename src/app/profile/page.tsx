@@ -104,26 +104,26 @@ const roleBadgeClass = (role: string) => {
   const normalizedRole = normalizeRoleName(role);
 
   if (normalizedRole === "root") {
-    return "border-[#7a1f27] bg-[#17090d] text-[#ff8f9d]";
+    return "border-[#ff4b5c] bg-[#1d0a0e] text-[#ffb8c0] shadow-[0_0_16px_rgba(255,75,92,0.18)]";
   }
 
   if (normalizedRole === "administrator") {
-    return "border-[#2c5b8f] bg-[#0d1725] text-[#92c6ff]";
+    return "border-[#4a93ff] bg-[#091321] text-[#bedaff] shadow-[0_0_16px_rgba(74,147,255,0.18)]";
   }
 
   if (normalizedRole === "moderator") {
-    return "border-[#5a4693] bg-[#151126] text-[#c7b8ff]";
+    return "border-[#8f6cff] bg-[#151028] text-[#ddd1ff] shadow-[0_0_16px_rgba(143,108,255,0.18)]";
   }
 
   if (normalizedRole === "tester") {
-    return "border-[#b9b9b9] bg-[#161616] text-[#f4f4f4]";
+    return "border-[#f2f2f2] bg-[#151515] text-[#ffffff] shadow-[0_0_16px_rgba(255,255,255,0.12)]";
   }
 
   if (normalizedRole === "subscriber") {
-    return "border-[#8c6a18] bg-[#171208] text-[#ffd86f]";
+    return "border-[#f0c54c] bg-[#1a1406] text-[#ffe7a3] shadow-[0_0_16px_rgba(240,197,76,0.18)]";
   }
 
-  return "border-[#1f3b2f] bg-[#0d1713] text-[#8ce5b2]";
+  return "border-[#43c980] bg-[#0b1711] text-[#b7f3cf] shadow-[0_0_16px_rgba(67,201,128,0.16)]";
 };
 const nameOf = (user: UserProfile) => user.displayName?.trim() || user.login?.trim() || "Sakura User";
 const initialsOf = (user: UserProfile) =>
