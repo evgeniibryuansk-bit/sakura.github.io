@@ -220,6 +220,10 @@ const firebaseModuleScript = `
       return "root";
     }
 
+    if (normalizedRole === "super administrator") {
+      return "root";
+    }
+
     return normalizedRole;
   };
 
