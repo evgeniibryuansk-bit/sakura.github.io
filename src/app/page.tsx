@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { motion } from "framer-motion";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef, useState, type FormEvent } from "react";
 
 type ShowcaseSlide = {
   id: string;
@@ -220,6 +220,82 @@ function buildUserInitials(user: AuthUserSnapshot) {
 
 function profileHref(profileId: number | null | undefined) {
   return profileId ? `${repoBasePath}/profile/${profileId}` : `${repoBasePath}/`;
+}
+
+function sanitizeProfileId(value: string) {
+  return value.replace(/[^\d]/g, "").slice(0, 8);
+}
+
+function PublicProfileLookup() {
+  const [profileIdInput, setProfileIdInput] = useState("");
+  const [lookupError, setLookupError] = useState<string | null>(null);
+
+  const handleSubmit = (event: FormEvent<HTMLFormElement>) => {
+    event.preventDefault();
+
+    const normalizedValue = sanitizeProfileId(profileIdInput);
+    const nextProfileId = Number(normalizedValue);
+
+    if (!normalizedValue || !Number.isInteger(nextProfileId) || nextProfileId <= 0) {
+      setLookupError("Введите номер профиля, например 1 или 2.");
+      return;
+    }
+
+    setLookupError(null);
+    window.location.assign(profileHref(nextProfileId));
+  };
+
+  return (
+    <div className="mt-8 w-full max-w-xl rounded-[30px] border border-[#201517] bg-[#0d0d0d]/88 p-5 shadow-[0_0_60px_rgba(255,183,197,0.06)] backdrop-blur-sm sm:p-6">
+      <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <p className="font-mono text-[10px] uppercase tracking-[0.38em] text-[#ffb7c5]">
+            Public Profiles
+          </p>
+          <p className="mt-3 max-w-md text-sm leading-relaxed text-gray-400">
+            Профили можно открывать без регистрации. Введите номер аккаунта и сайт
+            сразу перенесёт на нужную страницу.
+          </p>
+        </div>
+        <span className="inline-flex w-fit rounded-full border border-[#2b1b1e] bg-[#140d11] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.2em] text-[#ffb7c5]">
+          guest access
+        </span>
+      </div>
+
+      <form className="mt-5 flex flex-col gap-3 sm:flex-row" onSubmit={handleSubmit}>
+        <label className="flex-1">
+          <span className="sr-only">Profile ID</span>
+          <input
+            type="text"
+            inputMode="numeric"
+            value={profileIdInput}
+            onChange={(event) => {
+              setProfileIdInput(sanitizeProfileId(event.target.value));
+              if (lookupError) {
+                setLookupError(null);
+              }
+            }}
+            className="w-full rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55"
+            placeholder="Profile ID, for example 1"
+          />
+        </label>
+        <button
+          type="submit"
+          className="inline-flex items-center justify-center rounded-2xl bg-[#ffb7c5] px-5 py-3 text-sm font-black uppercase tracking-[0.18em] text-black shadow-[0_0_30px_rgba(255,183,197,0.12)] transition hover:bg-[#ffc8d3]"
+        >
+          Open Profile
+        </button>
+      </form>
+
+      {lookupError ? (
+        <p className="mt-3 text-sm leading-relaxed text-[#ffb7c5]">{lookupError}</p>
+      ) : (
+        <p className="mt-3 text-xs uppercase tracking-[0.18em] text-gray-600">
+          Works without login: `/profile/1`, `/profile/2`, `/profile/3`
+        </p>
+      )}
+    </div>
+  );
 }
 
 function scrollToSection(sectionId: string) {
@@ -919,6 +995,8 @@ export default function Home() {
               View Wiki
             </button>
           </div>
+
+          <PublicProfileLookup />
         </section>
 
         <section id="features" className="grid grid-cols-1 gap-1 px-10 pt-20 pb-1 md:grid-cols-2">
