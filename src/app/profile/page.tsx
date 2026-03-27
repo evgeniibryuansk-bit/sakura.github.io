@@ -19,18 +19,24 @@ type FirebaseClientConfig = {
 type AuthUserSnapshot = {
   uid: string;
   email: string | null;
+  login: string | null;
   displayName: string | null;
   profileId: number | null;
   photoURL: string | null;
   providerIds: string[];
   creationTime: string | null;
   lastSignInTime: string | null;
+  loginHistory: string[];
 };
 
 type FirebaseAuthBridge = {
-  login: (email: string, password: string) => Promise<AuthUserSnapshot | null>;
+  login: (identifier: string, password: string) => Promise<AuthUserSnapshot | null>;
   loginWithGoogle: () => Promise<AuthUserSnapshot | null>;
-  register: (email: string, password: string) => Promise<AuthUserSnapshot | null>;
+  register: (credentials: {
+    login: string;
+    email: string;
+    password: string;
+  }) => Promise<AuthUserSnapshot | null>;
   logout: () => Promise<void>;
   onAuthStateChanged: (callback: (user: AuthUserSnapshot | null) => void) => () => void;
 };
@@ -77,7 +83,7 @@ function formatTimestamp(value: string | null) {
 }
 
 function buildInitials(user: AuthUserSnapshot) {
-  const source = user.displayName?.trim() || user.email?.trim() || "Sakura User";
+  const source = user.displayName?.trim() || user.login?.trim() || user.email?.trim() || "Sakura User";
   const segments = source.split(/[\s@._-]+/).filter(Boolean);
 
   return segments
@@ -85,6 +91,10 @@ function buildInitials(user: AuthUserSnapshot) {
     .map((segment) => segment[0]?.toUpperCase() ?? "")
     .join("")
     .slice(0, 2);
+}
+
+function buildPrimaryName(user: AuthUserSnapshot) {
+  return user.displayName?.trim() || user.login?.trim() || "Sakura User";
 }
 
 export default function ProfilePage() {
@@ -189,6 +199,26 @@ export default function ProfilePage() {
     : ["Firebase Auth"];
 
   const userInitials = currentUser ? buildInitials(currentUser) : "SA";
+  const primaryName = currentUser ? buildPrimaryName(currentUser) : "Sakura User";
+  const recentSignIns = currentUser?.loginHistory?.length
+    ? currentUser.loginHistory
+    : [currentUser?.lastSignInTime, currentUser?.creationTime].filter(
+        (value): value is string => Boolean(value)
+      );
+  const privateSections = [
+    {
+      title: "Private Builds",
+      desc: "Доступ к приватным раздачам, патчноутам и внутренним релизам только после авторизации.",
+    },
+    {
+      title: "Cloud Config",
+      desc: "Быстрый вход с сохранением персонального логина, истории входов и привязанных способов авторизации.",
+    },
+    {
+      title: "Account Notes",
+      desc: "Закрытая зона для будущих данных аккаунта: статуса, подписки, тикетов и внутренних уведомлений.",
+    },
+  ];
   const projectId = typeof window !== "undefined" ? window.firebaseConfig?.projectId : "sakura-bfa74";
   const profileLabel = currentUser?.profileId ? `Profile #${currentUser.profileId}` : "Profile";
 
@@ -301,7 +331,7 @@ export default function ProfilePage() {
                   {currentUser.photoURL ? (
                     <img
                       src={currentUser.photoURL}
-                      alt={currentUser.displayName ?? currentUser.email ?? "Profile avatar"}
+                      alt={primaryName}
                       className="h-24 w-24 rounded-[28px] border border-[#2c2023] object-cover shadow-[0_0_30px_rgba(255,183,197,0.14)]"
                     />
                   ) : (
@@ -315,8 +345,16 @@ export default function ProfilePage() {
                       Account Overview
                     </p>
                     <h2 className="mt-3 truncate text-3xl font-black uppercase tracking-tighter text-white">
-                      {currentUser.displayName ?? "Sakura User"}
+                      {primaryName}
                     </h2>
+                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                      <span className="inline-flex rounded-full border border-[#2b1b1e] bg-[#1a1012] px-3 py-1 text-[11px] font-bold uppercase tracking-[0.14em] text-[#ffb7c5]">
+                        {currentUser.login ? `@${currentUser.login}` : "login pending"}
+                      </span>
+                      <span className="text-xs text-gray-500">
+                        Логин можно использовать для входа вместо email.
+                      </span>
+                    </div>
                     <p className="mt-3 break-all text-sm leading-relaxed text-gray-400">
                       {currentUser.email ?? "Email not provided"}
                     </p>
@@ -331,6 +369,15 @@ export default function ProfilePage() {
                     </p>
                     <p className="mt-3 text-sm leading-relaxed text-gray-300">
                       {currentUser.profileId ?? "Not assigned"}
+                    </p>
+                  </div>
+
+                  <div className="rounded-[26px] border border-[#1d1d1d] bg-[#090909] p-5">
+                    <p className="font-mono text-[10px] uppercase tracking-[0.32em] text-gray-600">
+                      Login
+                    </p>
+                    <p className="mt-3 break-all text-sm leading-relaxed text-gray-300">
+                      {currentUser.login ? `@${currentUser.login}` : "Not assigned"}
                     </p>
                   </div>
 
@@ -403,9 +450,50 @@ export default function ProfilePage() {
                   <div>
                     <p className="text-sm font-semibold text-[#d6f2e2]">Session Active</p>
                     <p className="mt-1 text-xs text-[#9ec7b3]">
-                      Аккаунт успешно подключен к Firebase Auth.
+                      Аккаунт успешно подключен к Firebase Auth и приватным разделам профиля.
                     </p>
                   </div>
+                </div>
+              </div>
+
+              <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
+                  Login History
+                </p>
+                <div className="mt-5 space-y-3">
+                  {recentSignIns.map((entry, index) => (
+                    <div
+                      key={`${entry}-${index}`}
+                      className="rounded-[22px] border border-[#1d1d1d] bg-[#090909] px-4 py-3"
+                    >
+                      <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-gray-600">
+                        {index === 0 ? "Latest Session" : `Previous #${index}`}
+                      </p>
+                      <p className="mt-2 text-sm text-gray-300">{formatTimestamp(entry)}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
+                  Private Sections
+                </p>
+                <div className="mt-5 space-y-3">
+                  {privateSections.map((section) => (
+                    <div
+                      key={section.title}
+                      className="rounded-[22px] border border-[#1d1d1d] bg-[#090909] px-4 py-4"
+                    >
+                      <div className="flex items-center justify-between gap-3">
+                        <p className="text-sm font-semibold text-white">{section.title}</p>
+                        <span className="inline-flex rounded-full border border-[#1f3b2f] bg-[#0d1713] px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] text-[#8ce5b2]">
+                          Unlocked
+                        </span>
+                      </div>
+                      <p className="mt-2 text-sm leading-relaxed text-gray-400">{section.desc}</p>
+                    </div>
+                  ))}
                 </div>
               </div>
 

@@ -11,14 +11,20 @@ const firebaseModuleScript = `
     onAuthStateChanged,
     signInWithPopup,
     signInWithEmailAndPassword,
-    signOut
+    signOut,
+    updateProfile
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-auth.js";
   import {
+    collection,
     doc,
     getDoc,
+    getDocs,
     getFirestore,
+    limit,
+    query,
     runTransaction,
-    setDoc
+    setDoc,
+    where
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -31,19 +37,63 @@ const firebaseModuleScript = `
     measurementId: "G-1V07L6BRL0"
   };
 
-  const toUserSnapshot = (user, profileId = null) =>
+  const LOGIN_MAX_LENGTH = 24;
+  const LOGIN_MIN_LENGTH = 3;
+
+  const createFirebaseError = (code, message) => {
+    const error = new Error(message);
+    error.code = code;
+    return error;
+  };
+
+  const sanitizeLogin = (value) =>
+    value
+      .trim()
+      .replace(/\s+/g, "")
+      .replace(/[^\p{L}\p{N}._-]/gu, "")
+      .slice(0, LOGIN_MAX_LENGTH);
+
+  const normalizeLogin = (value) => sanitizeLogin(value).toLocaleLowerCase();
+
+  const deriveLoginSeed = (user, preferredDisplayName = null) => {
+    const source =
+      preferredDisplayName?.trim() ||
+      user.displayName?.trim() ||
+      user.email?.split("@")[0]?.trim() ||
+      "sakurauser";
+
+    const cleaned = sanitizeLogin(source);
+
+    return cleaned || \`user\${user.uid.slice(0, 6)}\`;
+  };
+
+  const buildLoginHistory = (existingHistory, creationTime, lastSignInTime) => {
+    const previousEntries = Array.isArray(existingHistory)
+      ? existingHistory.filter((entry) => typeof entry === "string")
+      : [];
+    const nextEntries = [lastSignInTime ?? null, creationTime ?? null].filter(Boolean);
+
+    return [...new Set([...nextEntries, ...previousEntries])]
+      .sort((left, right) => new Date(right).getTime() - new Date(left).getTime())
+      .slice(0, 8);
+  };
+
+  const toUserSnapshot = (user, details = {}) =>
     user
       ? {
           uid: user.uid,
           email: user.email ?? null,
-          displayName: user.displayName ?? null,
-          profileId,
+          login: details.login ?? null,
+          displayName: user.displayName ?? details.displayName ?? details.login ?? null,
+          profileId: typeof details.profileId === "number" ? details.profileId : null,
           photoURL: user.photoURL ?? null,
-          providerIds: user.providerData
-            .map((provider) => provider?.providerId)
-            .filter(Boolean),
+          providerIds:
+            user.providerData.map((provider) => provider?.providerId).filter(Boolean) ??
+            details.providerIds ??
+            [],
           creationTime: user.metadata.creationTime ?? null,
-          lastSignInTime: user.metadata.lastSignInTime ?? null
+          lastSignInTime: user.metadata.lastSignInTime ?? null,
+          loginHistory: Array.isArray(details.loginHistory) ? details.loginHistory : []
         }
       : null;
 
@@ -57,34 +107,140 @@ const firebaseModuleScript = `
 
     const userRefFor = (uid) => doc(db, "users", uid);
     const countersRef = doc(db, "meta", "counters");
+    const usersCollection = collection(db, "users");
 
-    const ensureProfileRecord = async (user) => {
+    const findUserByLogin = async (loginLower) => {
+      const snapshot = await getDocs(
+        query(usersCollection, where("loginLower", "==", loginLower), limit(1))
+      );
+
+      return snapshot.empty ? null : snapshot.docs[0];
+    };
+
+    const resolveAvailableLogin = async (requestedLogin, currentUid = null, automatic = false) => {
+      const baseLogin = sanitizeLogin(requestedLogin);
+
+      if (!baseLogin || baseLogin.length < LOGIN_MIN_LENGTH) {
+        throw createFirebaseError(
+          "auth/invalid-login",
+          "Login must contain at least 3 characters."
+        );
+      }
+
+      for (let attempt = 0; attempt < 20; attempt += 1) {
+        const suffix = attempt === 0 ? "" : String(attempt + 1);
+        const trimmedBase = baseLogin.slice(0, LOGIN_MAX_LENGTH - suffix.length);
+        const login = \`\${trimmedBase}\${suffix}\`;
+        const loginLower = normalizeLogin(login);
+        const existingLoginDoc = await findUserByLogin(loginLower);
+
+        if (!existingLoginDoc || existingLoginDoc.id === currentUid) {
+          return {
+            login,
+            loginLower,
+          };
+        }
+
+        if (!automatic) {
+          throw createFirebaseError(
+            "auth/login-already-in-use",
+            "This login is already taken."
+          );
+        }
+      }
+
+      throw createFirebaseError(
+        "auth/login-already-in-use",
+        "This login is already taken."
+      );
+    };
+
+    const resolveEmailForLogin = async (identifier) => {
+      const trimmedIdentifier = identifier.trim();
+
+      if (trimmedIdentifier.includes("@")) {
+        return trimmedIdentifier;
+      }
+
+      const loginLower = normalizeLogin(trimmedIdentifier);
+
+      if (!loginLower) {
+        throw createFirebaseError("auth/invalid-login", "Invalid login.");
+      }
+
+      const userDoc = await findUserByLogin(loginLower);
+
+      if (!userDoc) {
+        throw createFirebaseError("auth/login-not-found", "Login not found.");
+      }
+
+      const userData = userDoc.data();
+
+      if (typeof userData?.email !== "string" || !userData.email) {
+        throw createFirebaseError("auth/login-not-found", "Login not found.");
+      }
+
+      return userData.email;
+    };
+
+    const ensureProfileRecord = async (user, options = {}) => {
       const userRef = userRefFor(user.uid);
       const userSnapshot = await getDoc(userRef);
       const existingData = userSnapshot.exists() ? userSnapshot.data() : null;
       const existingProfileId =
         typeof existingData?.profileId === "number" ? existingData.profileId : null;
+      const providerIds = user.providerData
+        .map((providerData) => providerData?.providerId)
+        .filter(Boolean);
+      const preferredDisplayName =
+        typeof options.preferredDisplayName === "string" && options.preferredDisplayName.trim()
+          ? options.preferredDisplayName.trim()
+          : null;
+
+      const loginDetails =
+        typeof existingData?.login === "string" && typeof existingData?.loginLower === "string"
+          ? {
+              login: existingData.login,
+              loginLower: existingData.loginLower,
+            }
+          : typeof options.requestedLogin === "string" && options.requestedLogin.trim()
+            ? await resolveAvailableLogin(options.requestedLogin, user.uid)
+            : await resolveAvailableLogin(deriveLoginSeed(user, preferredDisplayName), user.uid, true);
+
+      const loginHistory = buildLoginHistory(
+        existingData?.loginHistory,
+        user.metadata.creationTime ?? null,
+        user.metadata.lastSignInTime ?? null
+      );
+      const profilePayload = {
+        uid: user.uid,
+        email: user.email ?? null,
+        login: loginDetails.login,
+        loginLower: loginDetails.loginLower,
+        displayName:
+          preferredDisplayName ??
+          user.displayName ??
+          existingData?.displayName ??
+          loginDetails.login,
+        photoURL: user.photoURL ?? null,
+        providerIds,
+        creationTime: user.metadata.creationTime ?? null,
+        lastSignInTime: user.metadata.lastSignInTime ?? null,
+        loginHistory,
+        updatedAt: new Date().toISOString(),
+      };
 
       const writeProfileData = async (profileId) => {
         await setDoc(
           userRef,
-          {
-            uid: user.uid,
-            email: user.email ?? null,
-            displayName: user.displayName ?? null,
-            photoURL: user.photoURL ?? null,
-            providerIds: user.providerData
-              .map((providerData) => providerData?.providerId)
-              .filter(Boolean),
-            profileId,
-            creationTime: user.metadata.creationTime ?? null,
-            lastSignInTime: user.metadata.lastSignInTime ?? null,
-            updatedAt: new Date().toISOString()
-          },
+          { ...profilePayload, profileId },
           { merge: true }
         );
 
-        return profileId;
+        return {
+          ...profilePayload,
+          profileId,
+        };
       };
 
       if (existingProfileId !== null) {
@@ -102,32 +258,23 @@ const firebaseModuleScript = `
         transaction.set(countersRef, { profileCount: profileId }, { merge: true });
         transaction.set(
           userRef,
-          {
-            uid: user.uid,
-            email: user.email ?? null,
-            displayName: user.displayName ?? null,
-            photoURL: user.photoURL ?? null,
-            providerIds: user.providerData
-              .map((providerData) => providerData?.providerId)
-              .filter(Boolean),
-            profileId,
-            creationTime: user.metadata.creationTime ?? null,
-            lastSignInTime: user.metadata.lastSignInTime ?? null,
-            updatedAt: new Date().toISOString()
-          },
+          { ...profilePayload, profileId },
           { merge: true }
         );
 
         return profileId;
       });
 
-      return nextProfileId;
+      return {
+        ...profilePayload,
+        profileId: nextProfileId,
+      };
     };
 
-    const resolveUserSnapshot = async (user) => {
-      const profileId = await ensureProfileRecord(user);
+    const resolveUserSnapshot = async (user, options = {}) => {
+      const details = await ensureProfileRecord(user, options);
 
-      return toUserSnapshot(user, profileId);
+      return toUserSnapshot(user, details);
     };
 
     const loginWithGoogle = async () => {
@@ -136,11 +283,21 @@ const firebaseModuleScript = `
     };
 
     window.sakuraFirebaseAuth = {
-      register: async (email, password) => {
+      register: async ({ login, email, password }) => {
+        const resolvedLogin = await resolveAvailableLogin(login);
         const credentials = await createUserWithEmailAndPassword(auth, email, password);
-        return resolveUserSnapshot(credentials.user);
+
+        await updateProfile(credentials.user, {
+          displayName: resolvedLogin.login,
+        });
+
+        return resolveUserSnapshot(credentials.user, {
+          requestedLogin: resolvedLogin.login,
+          preferredDisplayName: resolvedLogin.login,
+        });
       },
-      login: async (email, password) => {
+      login: async (identifier, password) => {
+        const email = await resolveEmailForLogin(identifier);
         const credentials = await signInWithEmailAndPassword(auth, email, password);
         return resolveUserSnapshot(credentials.user);
       },

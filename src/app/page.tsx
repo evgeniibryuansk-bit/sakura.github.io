@@ -81,18 +81,24 @@ type AuthMode = "login" | "register";
 type AuthUserSnapshot = {
   uid: string;
   email: string | null;
+  login: string | null;
   displayName: string | null;
   profileId: number | null;
   photoURL: string | null;
   providerIds: string[];
   creationTime: string | null;
   lastSignInTime: string | null;
+  loginHistory: string[];
 };
 
 type FirebaseAuthBridge = {
-  login: (email: string, password: string) => Promise<AuthUserSnapshot | null>;
+  login: (identifier: string, password: string) => Promise<AuthUserSnapshot | null>;
   loginWithGoogle: () => Promise<AuthUserSnapshot | null>;
-  register: (email: string, password: string) => Promise<AuthUserSnapshot | null>;
+  register: (credentials: {
+    login: string;
+    email: string;
+    password: string;
+  }) => Promise<AuthUserSnapshot | null>;
   logout: () => Promise<void>;
   onAuthStateChanged: (callback: (user: AuthUserSnapshot | null) => void) => () => void;
 };
@@ -115,17 +121,32 @@ function getFirebaseErrorMessage(error: unknown) {
       ? String((error as { code?: unknown }).code)
       : "";
 
+  if (code === "auth/invalid-login") {
+    return "Логин должен содержать минимум 3 символа и быть без пробелов.";
+  }
+
+  if (code === "auth/login-already-in-use") {
+    return "Этот логин уже занят.";
+  }
+
+  if (code === "auth/login-not-found") {
+    return "Аккаунт с таким логином не найден.";
+  }
+
   switch (code) {
     case "auth/email-already-in-use":
       return "Этот email уже зарегистрирован.";
     case "auth/invalid-email":
       return "Введите корректный email.";
     case "auth/weak-password":
+    case "auth/invalid-login":
+    case "auth/login-already-in-use":
+    case "auth/login-not-found":
       return "Пароль должен содержать минимум 6 символов.";
     case "auth/user-not-found":
     case "auth/wrong-password":
     case "auth/invalid-credential":
-      return "Неверный email или пароль.";
+      return "Неверный email, логин или пароль.";
     case "auth/too-many-requests":
       return "Слишком много попыток. Попробуйте немного позже.";
     case "auth/network-request-failed":
@@ -149,6 +170,21 @@ function getFirebaseErrorMessage(error: unknown) {
 
       return "Не удалось выполнить запрос к Firebase Auth. Попробуйте еще раз.";
   }
+}
+
+function buildUserLabel(user: AuthUserSnapshot) {
+  return user.displayName?.trim() || user.login?.trim() || user.email?.trim() || "Signed in";
+}
+
+function buildUserInitials(user: AuthUserSnapshot) {
+  const source = buildUserLabel(user);
+  const parts = source.split(/[\s@._-]+/).filter(Boolean);
+
+  return parts
+    .slice(0, 2)
+    .map((part) => part[0]?.toUpperCase() ?? "")
+    .join("")
+    .slice(0, 2);
 }
 
 function scrollToSection(sectionId: string) {
@@ -266,7 +302,8 @@ function HeaderAuth() {
   const [authReady, setAuthReady] = useState(false);
   const [authLoadError, setAuthLoadError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUserSnapshot | null>(null);
-  const [email, setEmail] = useState("");
+  const [identifier, setIdentifier] = useState("");
+  const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [submitError, setSubmitError] = useState<string | null>(null);
@@ -376,6 +413,7 @@ function HeaderAuth() {
   const closeModal = () => {
     setIsModalOpen(false);
     setSubmitError(null);
+    setLoginName("");
     setPassword("");
     setConfirmPassword("");
   };
@@ -383,6 +421,7 @@ function HeaderAuth() {
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);
     setSubmitError(null);
+    setLoginName("");
     setPassword("");
     setConfirmPassword("");
   };
@@ -397,14 +436,28 @@ function HeaderAuth() {
       return;
     }
 
-    if (!email.trim()) {
-      setSubmitError("Введите email.");
+    if (!identifier.trim()) {
+      setSubmitError(mode === "register" ? "Введите email." : "Введите email или логин.");
       return;
     }
 
     if (!password) {
       setSubmitError("Введите пароль.");
       return;
+    }
+
+    if (mode === "register") {
+      const normalizedLogin = loginName.trim().replace(/\s+/g, "");
+
+      if (!normalizedLogin) {
+        setSubmitError("Введите логин.");
+        return;
+      }
+
+      if (normalizedLogin.length < 3 || !/^[\p{L}\p{N}._-]+$/u.test(normalizedLogin)) {
+        setSubmitError(getFirebaseErrorMessage({ code: "auth/invalid-login" }));
+        return;
+      }
     }
 
     if (mode === "register" && password !== confirmPassword) {
@@ -417,10 +470,14 @@ function HeaderAuth() {
 
     try {
       if (mode === "register") {
-        await window.sakuraFirebaseAuth.register(email.trim(), password);
+        await window.sakuraFirebaseAuth.register({
+          login: loginName.trim().replace(/\s+/g, ""),
+          email: identifier.trim(),
+          password,
+        });
         setFlashMessage("Аккаунт создан. Вход выполнен автоматически.");
       } else {
-        await window.sakuraFirebaseAuth.login(email.trim(), password);
+        await window.sakuraFirebaseAuth.login(identifier.trim(), password);
         setFlashMessage("Вход выполнен.");
       }
 
@@ -476,22 +533,41 @@ function HeaderAuth() {
     }
   };
 
+  const userLabel = currentUser ? buildUserLabel(currentUser) : "Signed in";
+  const userInitials = currentUser ? buildUserInitials(currentUser) : "SA";
+
   return (
     <>
       {currentUser ? (
-        <>
+        <div className="flex flex-wrap items-center justify-end gap-2">
           <Link
             href="/profile"
             className="inline-flex items-center justify-center rounded-full border border-[#2a2a2a] bg-[#101010] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-300 transition hover:border-[#4a4a4a] hover:text-white"
           >
             {currentUser.profileId ? `Profile #${currentUser.profileId}` : "Profile"}
           </Link>
-          <div className="hidden items-center gap-2 rounded-full border border-[#1f3b2f] bg-[#0d1713] px-4 py-2 sm:flex">
-            <span className="h-2 w-2 rounded-full bg-[#8ce5b2] shadow-[0_0_12px_rgba(140,229,178,0.55)]"></span>
-            <span className="max-w-[210px] truncate text-[11px] text-[#cfe9dc]">
-              {currentUser.displayName ?? currentUser.email ?? "Signed in"}
+          <Link
+            href="/profile"
+            className="group inline-flex max-w-full items-center gap-3 rounded-full border border-[#1f3b2f] bg-[#0d1713] py-1.5 pr-4 pl-1.5 transition hover:border-[#56c48e]/45 hover:bg-[#102018]"
+          >
+            {currentUser.photoURL ? (
+              <img
+                src={currentUser.photoURL}
+                alt={userLabel}
+                className="h-9 w-9 rounded-full border border-[#244233] object-cover"
+              />
+            ) : (
+              <span className="flex h-9 w-9 items-center justify-center rounded-full border border-[#244233] bg-[#14241c] text-[11px] font-black uppercase text-[#b4eccd]">
+                {userInitials}
+              </span>
+            )}
+            <span className="flex min-w-0 items-center gap-2">
+              <span className="h-2.5 w-2.5 rounded-full bg-[#8ce5b2] shadow-[0_0_12px_rgba(140,229,178,0.55)]"></span>
+              <span className="max-w-[220px] truncate text-[12px] font-medium text-[#d6f2e2]">
+                {userLabel}
+              </span>
             </span>
-          </div>
+          </Link>
           <button
             type="button"
             onClick={handleLogout}
@@ -500,7 +576,7 @@ function HeaderAuth() {
           >
             {isLoggingOut ? "Logging out..." : "Logout"}
           </button>
-        </>
+        </div>
       ) : (
         <>
           <button
@@ -555,7 +631,9 @@ function HeaderAuth() {
                     {mode === "register" ? "Registration" : "Login"}
                   </h2>
                   <p className="mt-2 text-sm text-gray-400">
-                    Авторизация через Firebase Email/Password.
+                    {mode === "register"
+                      ? "Создайте логин, чтобы он отображался в профиле и подходил для входа."
+                      : "Войти можно по email или логину через Firebase Auth."}
                   </p>
                 </div>
 
@@ -629,17 +707,38 @@ function HeaderAuth() {
               </div>
 
               <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+                {mode === "register" ? (
+                  <label className="block">
+                    <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">
+                      Login
+                    </span>
+                    <input
+                      type="text"
+                      value={loginName}
+                      autoComplete="username"
+                      onChange={(event) => setLoginName(event.target.value)}
+                      className="w-full rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55"
+                      placeholder="your_login"
+                    />
+                    <span className="mt-2 block text-xs leading-relaxed text-gray-500">
+                      Логин без пробелов. Поддерживаются буквы, цифры, `.`, `_`, `-`.
+                    </span>
+                  </label>
+                ) : null}
+
                 <label className="block">
                   <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">
-                    Email
+                    {mode === "register" ? "Email" : "Email or Login"}
                   </span>
                   <input
-                    type="email"
-                    value={email}
-                    autoComplete="email"
-                    onChange={(event) => setEmail(event.target.value)}
+                    type={mode === "register" ? "email" : "text"}
+                    value={identifier}
+                    autoComplete={mode === "register" ? "email" : "username"}
+                    onChange={(event) => setIdentifier(event.target.value)}
                     className="w-full rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55"
-                    placeholder="you@example.com"
+                    placeholder={
+                      mode === "register" ? "you@example.com" : "you@example.com or your_login"
+                    }
                   />
                 </label>
 
