@@ -204,6 +204,17 @@ const firebaseModuleScript = `
   const getProviderIds = (user) =>
     user.providerData.map((providerData) => providerData?.providerId).filter(Boolean);
 
+  const normalizeRoles = (roles) => {
+    const nextRoles = Array.isArray(roles)
+      ? roles
+          .filter((role) => typeof role === "string")
+          .map((role) => role.trim().toLowerCase())
+          .filter(Boolean)
+      : [];
+
+    return nextRoles.length ? [...new Set(nextRoles)] : ["user"];
+  };
+
   const buildLoginHistory = (existingHistory, creationTime, lastSignInTime) => {
     const previousEntries = Array.isArray(existingHistory)
       ? existingHistory.filter((entry) => typeof entry === "string")
@@ -271,6 +282,7 @@ const firebaseModuleScript = `
         profileId: null,
         photoURL: user.photoURL ?? null,
         providerIds: getProviderIds(user),
+        roles: ["user"],
         loginHistory: buildLoginHistory(
           [],
         user.metadata.creationTime ?? null,
@@ -288,6 +300,7 @@ const firebaseModuleScript = `
     profileId: typeof details.profileId === "number" ? details.profileId : null,
     photoURL: resolvePhotoURL(details, user.photoURL ?? null),
     providerIds: Array.isArray(details.providerIds) ? details.providerIds : getProviderIds(user),
+    roles: normalizeRoles(details.roles),
     loginHistory: Array.isArray(details.loginHistory)
       ? details.loginHistory
       : buildLoginHistory([], user.metadata.creationTime ?? null, user.metadata.lastSignInTime ?? null),
@@ -304,6 +317,7 @@ const firebaseModuleScript = `
           displayName: user.displayName ?? details.displayName ?? details.login ?? null,
           profileId: typeof details.profileId === "number" ? details.profileId : null,
           photoURL: resolvePhotoURL(details, user.photoURL ?? null),
+          roles: normalizeRoles(details.roles),
           providerIds:
             user.providerData.map((provider) => provider?.providerId).filter(Boolean) ??
             details.providerIds ??
@@ -328,6 +342,7 @@ const firebaseModuleScript = `
           : null,
     profileId: typeof details.profileId === "number" ? details.profileId : null,
     photoURL: resolvePhotoURL(details, null),
+    roles: normalizeRoles(details.roles),
     providerIds: Array.isArray(details.providerIds)
       ? details.providerIds.filter((providerId) => typeof providerId === "string")
       : [],
@@ -532,6 +547,7 @@ const firebaseModuleScript = `
               displayName: window.sakuraCurrentUserSnapshot.displayName,
               profileId: window.sakuraCurrentUserSnapshot.profileId,
               photoURL: window.sakuraCurrentUserSnapshot.photoURL,
+              roles: window.sakuraCurrentUserSnapshot.roles,
               providerIds: window.sakuraCurrentUserSnapshot.providerIds,
               loginHistory: window.sakuraCurrentUserSnapshot.loginHistory,
               visitHistory: window.sakuraCurrentUserSnapshot.visitHistory,
@@ -572,6 +588,7 @@ const firebaseModuleScript = `
       );
       const visitHistory = normalizeVisitHistory(existingData?.visitHistory);
       const presence = normalizePresence(existingData?.presence, window.location.pathname);
+      const roles = normalizeRoles(existingData?.roles);
       const profilePayload = {
         uid: user.uid,
         email: user.email ?? null,
@@ -583,6 +600,7 @@ const firebaseModuleScript = `
           existingData?.displayName ??
           loginDetails.login,
         photoURL: resolvePhotoURL(existingData, user.photoURL ?? null),
+        roles,
         providerIds,
         creationTime: user.metadata.creationTime ?? null,
         lastSignInTime: user.metadata.lastSignInTime ?? null,
@@ -655,6 +673,7 @@ const firebaseModuleScript = `
           typeof finalData?.displayName === "string"
             ? finalData.displayName
             : profilePayload.displayName,
+        roles: normalizeRoles(finalData?.roles ?? roles),
         providerIds: Array.isArray(finalData?.providerIds) ? finalData.providerIds : providerIds,
         loginHistory: Array.isArray(finalData?.loginHistory) ? finalData.loginHistory : loginHistory,
         visitHistory: normalizeVisitHistory(finalData?.visitHistory ?? visitHistory),

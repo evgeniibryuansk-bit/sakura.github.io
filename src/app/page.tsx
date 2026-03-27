@@ -98,6 +98,7 @@ type AuthUserSnapshot = {
   displayName: string | null;
   profileId: number | null;
   photoURL: string | null;
+  roles: string[];
   providerIds: string[];
   creationTime: string | null;
   lastSignInTime: string | null;

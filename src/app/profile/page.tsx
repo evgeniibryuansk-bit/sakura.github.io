@@ -12,6 +12,7 @@ type UserProfile = {
   displayName: string | null;
   profileId: number | null;
   photoURL: string | null;
+  roles: string[];
   providerIds: string[];
   creationTime: string | null;
   lastSignInTime: string | null;
@@ -76,6 +77,12 @@ const formatTime = (value: string | null) =>
     : "Not available";
 const formatProvider = (providerId: string) =>
   providerId === "password" ? "Email / Password" : providerId === "google.com" ? "Google" : providerId;
+const formatRole = (role: string) =>
+  role
+    .split(/[\s_-]+/)
+    .filter(Boolean)
+    .map((part) => part[0]?.toUpperCase() + part.slice(1))
+    .join(" ");
 const nameOf = (user: UserProfile) => user.displayName?.trim() || user.login?.trim() || "Sakura User";
 const initialsOf = (user: UserProfile) =>
   (user.displayName || user.login || user.email || "SA")
@@ -328,6 +335,11 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex flex-col gap-6">
+              <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
+                <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Roles</p>
+                <div className="mt-5 flex flex-wrap gap-3">{(activeProfile.roles.length ? activeProfile.roles : ["user"]).map((role) => <span key={role} className={`inline-flex rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] ${role === "admin" ? "border-[#8b6b2b] bg-[#17120a] text-[#ffd88a]" : role === "moderator" ? "border-[#2c3f56] bg-[#101826] text-[#9fcbff]" : "border-[#1f3b2f] bg-[#0d1713] text-[#8ce5b2]"}`}>{formatRole(role)}</span>)}</div>
+              </div>
+
               <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Avatar</p>
                 <div className="mt-5 rounded-[24px] border border-[#1d1d1d] bg-[#090909] p-4">
