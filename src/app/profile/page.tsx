@@ -38,17 +38,26 @@ const AUTH_READY_EVENT = "sakura-auth-ready";
 const AUTH_ERROR_EVENT = "sakura-auth-error";
 const USER_UPDATE_EVENT = "sakura-user-update";
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
+const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
 const repoBasePath = "/sakura.github.io";
 const restoreProfilePathScript = `
   (function () {
     try {
       var fallbackPath = window.sessionStorage.getItem(${JSON.stringify(PROFILE_PATH_STORAGE_KEY)});
+      var currentProfileId = window.sessionStorage.getItem(${JSON.stringify(CURRENT_PROFILE_ID_STORAGE_KEY)});
       var currentPath = window.location.pathname;
       var profilePath = ${JSON.stringify(repoBasePath + "/profile")};
       var profilePattern = new RegExp("^" + ${JSON.stringify(repoBasePath)} + "/profile/\\\\d+$");
 
-      if (currentPath === profilePath && fallbackPath && profilePattern.test(fallbackPath)) {
-        window.history.replaceState(null, "", fallbackPath);
+      if (currentPath === profilePath) {
+        if (fallbackPath && profilePattern.test(fallbackPath)) {
+          window.history.replaceState(null, "", fallbackPath);
+          return;
+        }
+
+        if (currentProfileId && /^\\d+$/.test(currentProfileId)) {
+          window.history.replaceState(null, "", profilePath + "/" + currentProfileId);
+        }
       }
     } catch (error) {}
   })();

@@ -44,6 +44,7 @@ const firebaseModuleScript = `
   const AVATAR_EXPORT_QUALITY = 0.72;
   const PROFILE_LOOKUP_TIMEOUT_MS = 5000;
   const USER_UPDATE_EVENT = "sakura-user-update";
+  const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
   const AVATAR_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
   const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
 
@@ -356,6 +357,16 @@ const firebaseModuleScript = `
 
     const publishUserSnapshot = (snapshot) => {
       window.sakuraCurrentUserSnapshot = snapshot;
+      try {
+        if (typeof snapshot?.profileId === "number" && snapshot.profileId > 0) {
+          window.sessionStorage.setItem(
+            CURRENT_PROFILE_ID_STORAGE_KEY,
+            String(snapshot.profileId)
+          );
+        } else {
+          window.sessionStorage.removeItem(CURRENT_PROFILE_ID_STORAGE_KEY);
+        }
+      } catch (error) {}
       window.dispatchEvent(
         new CustomEvent(USER_UPDATE_EVENT, {
           detail: snapshot,
