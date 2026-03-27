@@ -27,13 +27,6 @@ const firebaseModuleScript = `
     setDoc,
     where
   } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore.js";
-  import {
-    getDownloadURL,
-    getStorage,
-    ref as storageRef,
-    uploadBytes
-  } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-storage.js";
-
   const firebaseConfig = {
     apiKey: "AIzaSyAnZQt5NWXGOWuz3STh_vy-dSENVBM9_ZY",
     authDomain: "sakura-bfa74.firebaseapp.com",
@@ -48,7 +41,6 @@ const firebaseModuleScript = `
   const LOGIN_MIN_LENGTH = 3;
   const MAX_AVATAR_BYTES = 5 * 1024 * 1024;
   const AVATAR_INLINE_SIZE = 256;
-  const AVATAR_UPLOAD_TIMEOUT_MS = 15000;
   const USER_UPDATE_EVENT = "sakura-user-update";
   const AVATAR_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
   const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
@@ -58,24 +50,6 @@ const firebaseModuleScript = `
     error.code = code;
     return error;
   };
-
-  const withTimeout = (promise, timeoutMs, createTimeoutError) =>
-    new Promise((resolve, reject) => {
-      const timeoutId = window.setTimeout(() => {
-        reject(createTimeoutError());
-      }, timeoutMs);
-
-      promise.then(
-        (value) => {
-          window.clearTimeout(timeoutId);
-          resolve(value);
-        },
-        (error) => {
-          window.clearTimeout(timeoutId);
-          reject(error);
-        }
-      );
-    });
 
   const readFileAsDataUrl = (file) =>
     new Promise((resolve, reject) => {
@@ -297,7 +271,6 @@ const firebaseModuleScript = `
     const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
     const auth = getAuth(app);
     const db = getFirestore(app);
-    const storage = getStorage(app);
     const provider = new GoogleAuthProvider();
 
     const userRefFor = (uid) => doc(db, "users", uid);
@@ -697,56 +670,8 @@ const firebaseModuleScript = `
       }
 
       const inlinePhotoURL = await createInlineAvatarDataUrl(file);
-      const rawExtension = file.name.includes(".") ? file.name.split(".").pop() : "";
-      const safeExtension = String(rawExtension ?? "")
-        .toLowerCase()
-        .replace(/[^a-z0-9]/g, "") || "png";
-      let photoURL = inlinePhotoURL;
-      let syncedToAuthProfile = false;
+      const photoURL = inlinePhotoURL;
       let persistedInFirestore = false;
-
-      try {
-        const avatarFileRef = storageRef(
-          storage,
-          "avatars/" + user.uid + "/avatar-" + Date.now() + "." + safeExtension
-        );
-
-        await withTimeout(
-          uploadBytes(avatarFileRef, file, {
-            contentType: file.type,
-            cacheControl: "public,max-age=31536000",
-          }),
-          AVATAR_UPLOAD_TIMEOUT_MS,
-          () =>
-            createFirebaseError(
-              "storage/upload-timeout",
-              "Avatar upload took too long. Saving a profile copy instead."
-            )
-        );
-
-        photoURL = await withTimeout(
-          getDownloadURL(avatarFileRef),
-          AVATAR_UPLOAD_TIMEOUT_MS,
-          () =>
-            createFirebaseError(
-              "storage/url-timeout",
-              "Avatar upload took too long. Saving a profile copy instead."
-            )
-        );
-      } catch (error) {
-        photoURL = inlinePhotoURL;
-      }
-
-      try {
-        await updateProfile(user, {
-          photoURL,
-        });
-        syncedToAuthProfile = true;
-      } catch (error) {
-        if (photoURL !== inlinePhotoURL) {
-          throw error;
-        }
-      }
 
       try {
         await setDoc(
@@ -759,15 +684,15 @@ const firebaseModuleScript = `
         );
         persistedInFirestore = true;
       } catch (error) {
-        if (!isPermissionDeniedError(error) || !syncedToAuthProfile) {
+        if (!isPermissionDeniedError(error)) {
           throw error;
         }
       }
 
-      if (!syncedToAuthProfile && !persistedInFirestore) {
+      if (!persistedInFirestore) {
         throw createFirebaseError(
           "avatar/persist-failed",
-          "Avatar could not be saved. Check Firebase Storage and Firestore rules."
+          "Avatar could not be saved. Check Firestore rules for users/{uid}."
         );
       }
 

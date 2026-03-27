@@ -134,20 +134,16 @@ function getAvatarUploadErrorMessage(error: unknown) {
       return "Файл должен быть не больше 5 МБ.";
     case "storage/invalid-file":
       return "Сначала выберите изображение.";
-    case "storage/upload-timeout":
-    case "storage/url-timeout":
-      return "Storage завис или отвечает слишком долго. Сайт попробовал сохранить аватар резервным способом.";
     case "storage/file-read-failed":
     case "storage/image-load-failed":
     case "storage/no-preview":
     case "storage/invalid-image-size":
     case "storage/no-canvas-context":
       return "Не удалось подготовить изображение. Попробуйте другой файл.";
-    case "storage/unauthorized":
     case "permission-denied":
-      return "Firebase Storage или Firestore не разрешают сохранить аватар. Проверьте rules.";
+      return "Firestore не разрешает сохранить аватар. Проверьте rules для users/{uid}.";
     case "avatar/persist-failed":
-      return "Сайт не смог сохранить аватар ни в Storage, ни в профиль пользователя.";
+      return "Сайт не смог сохранить аватар в профиль пользователя.";
     case "auth/no-current-user":
       return "Сессия истекла. Войдите снова и повторите загрузку.";
     default:
