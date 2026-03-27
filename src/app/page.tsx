@@ -118,6 +118,7 @@ type FirebaseAuthBridge = {
     email: string;
     password: string;
   }) => Promise<AuthUserSnapshot | null>;
+  resendVerificationEmail: () => Promise<AuthUserSnapshot | null>;
   getProfileById: (profileId: number) => Promise<AuthUserSnapshot | null>;
   updateAvatar: (file: File) => Promise<AuthUserSnapshot | null>;
   deleteAvatar: () => Promise<AuthUserSnapshot | null>;
@@ -293,6 +294,10 @@ function SakuraBackground() {
       let snapshot: AuthUserSnapshot | null;
       const snapshot = await window.sakuraFirebaseAuth.loginWithGoogle();
       setFlashMessage("Вход через Google выполнен.");
+      if (mode === "register" && snapshot?.verificationEmailSent) {
+        setFlashMessage("Аккаунт создан. Письмо для подтверждения отправлено на почту.");
+      }
+
       closeModal();
       navigateToProfile(snapshot);
     } catch (error) {
