@@ -63,15 +63,38 @@ const initialsOf = (user: UserProfile) =>
     .join("")
     .slice(0, 2);
 const avatarErrorMessage = (error: unknown) => (error instanceof Error ? error.message : "Avatar action failed.");
+const getInitialRequestedProfileId = () => {
+  if (typeof window === "undefined") return null;
+  const fallback = window.sessionStorage.getItem(PROFILE_PATH_STORAGE_KEY);
+  if (fallback) window.sessionStorage.removeItem(PROFILE_PATH_STORAGE_KEY);
+  return parseProfileId(window.location.pathname) ?? parseProfileId(fallback);
+};
+const getInitialCurrentUser = () =>
+  typeof window === "undefined" ? null : getWindowState().sakuraCurrentUserSnapshot ?? null;
+const getInitialProfile = (currentUser: UserProfile | null, requestedProfileId: number | null) =>
+  requestedProfileId === null || (currentUser?.profileId ?? null) === requestedProfileId ? currentUser : null;
+const getInitialBootstrap = () => {
+  const currentUser = getInitialCurrentUser();
+  const requestedProfileId = getInitialRequestedProfileId();
+
+  return {
+    authReady: typeof window !== "undefined" && Boolean(getWindowState().sakuraFirebaseAuth),
+    authError: typeof window === "undefined" ? null : getWindowState().sakuraFirebaseAuthError ?? null,
+    currentUser,
+    requestedProfileId,
+    profile: getInitialProfile(currentUser, requestedProfileId),
+  };
+};
 
 export default function ProfilePage() {
   const router = useRouter();
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
-  const [authReady, setAuthReady] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<UserProfile | null>(null);
-  const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [requestedProfileId, setRequestedProfileId] = useState<number | null>(null);
+  const [bootstrap] = useState(getInitialBootstrap);
+  const [authReady, setAuthReady] = useState(bootstrap.authReady);
+  const [authError, setAuthError] = useState<string | null>(bootstrap.authError);
+  const [currentUser, setCurrentUser] = useState<UserProfile | null>(bootstrap.currentUser);
+  const [profile, setProfile] = useState<UserProfile | null>(bootstrap.profile);
+  const [requestedProfileId] = useState<number | null>(bootstrap.requestedProfileId);
   const [profileError, setProfileError] = useState<string | null>(null);
   const [isProfileLoading, setIsProfileLoading] = useState(false);
   const [isLoggingOut, setIsLoggingOut] = useState(false);
@@ -83,9 +106,6 @@ export default function ProfilePage() {
   useEffect(() => {
     if (typeof window === "undefined") return;
     const runtime = getWindowState();
-    const fallback = window.sessionStorage.getItem(PROFILE_PATH_STORAGE_KEY);
-    if (fallback) window.sessionStorage.removeItem(PROFILE_PATH_STORAGE_KEY);
-    setRequestedProfileId(parseProfileId(window.location.pathname) ?? parseProfileId(fallback));
     let unsubscribe: () => void = () => {};
     const sync = () => {
       if (runtime.sakuraFirebaseAuth) {
