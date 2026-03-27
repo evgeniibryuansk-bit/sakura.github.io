@@ -95,6 +95,8 @@ type AuthUserSnapshot = {
   uid: string;
   isAnonymous: boolean;
   email: string | null;
+  emailVerified?: boolean;
+  verificationEmailSent?: boolean;
   login: string | null;
   displayName: string | null;
   profileId: number | null;
@@ -133,6 +135,7 @@ declare global {
     firebaseConfig?: FirebaseClientConfig;
     loginWithGoogle?: () => Promise<AuthUserSnapshot | null>;
     sakuraCurrentUserSnapshot?: AuthUserSnapshot | null;
+    sakuraAuthStateSettled?: boolean;
     sakuraFirebaseAuth?: FirebaseAuthBridge;
     sakuraFirebaseAuthError?: string;
   }

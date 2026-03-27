@@ -10,6 +10,7 @@ const firebaseModuleScript = `
     GoogleAuthProvider,
     getAuth,
     onAuthStateChanged,
+    sendEmailVerification,
     signInAnonymously,
     signInWithPopup,
     signInWithEmailAndPassword,
@@ -45,6 +46,7 @@ const firebaseModuleScript = `
   const AVATAR_EXPORT_QUALITY = 0.72;
   const PROFILE_LOOKUP_TIMEOUT_MS = 5000;
   const USER_UPDATE_EVENT = "sakura-user-update";
+  const AUTH_STATE_SETTLED_EVENT = "sakura-auth-state-settled";
   const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
   const AVATAR_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
   const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
@@ -445,6 +447,7 @@ const firebaseModuleScript = `
   });
 
   window.firebaseConfig = firebaseConfig;
+  window.sakuraAuthStateSettled = false;
 
   try {
     const app = getApps().length ? getApps()[0] : initializeApp(firebaseConfig);
@@ -458,6 +461,31 @@ const firebaseModuleScript = `
     let stopPresenceTracking = () => {};
     let lastPresenceSignature = "";
     let lastPresenceAt = 0;
+    let authStateHasSettled = false;
+
+    const markAuthStateSettled = () => {
+      if (authStateHasSettled) {
+        return;
+      }
+
+      authStateHasSettled = true;
+      window.sakuraAuthStateSettled = true;
+      window.dispatchEvent(new CustomEvent(AUTH_STATE_SETTLED_EVENT));
+    };
+
+    const waitForAuthStateSettlement = () =>
+      window.sakuraAuthStateSettled
+        ? Promise.resolve()
+        : new Promise((resolve) => {
+            const finish = () => {
+              window.clearTimeout(timeoutId);
+              window.removeEventListener(AUTH_STATE_SETTLED_EVENT, finish);
+              resolve();
+            };
+
+            const timeoutId = window.setTimeout(finish, 1500);
+            window.addEventListener(AUTH_STATE_SETTLED_EVENT, finish, { once: true });
+          });
 
     const publishUserSnapshot = (snapshot) => {
       window.sakuraCurrentUserSnapshot = snapshot;
@@ -923,6 +951,19 @@ const firebaseModuleScript = `
         return profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
       }
 
+      await waitForAuthStateSettlement();
+
+      if (auth.currentUser && !auth.currentUser.isAnonymous) {
+        try {
+          profileDoc = await readProfileDoc();
+          return profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
+        } catch (error) {
+          if (!isPermissionDeniedError(error)) {
+            throw error;
+          }
+        }
+      }
+
       const viewer = await ensureProfileViewer();
 
       if (viewer.isAnonymous) {
@@ -1124,6 +1165,7 @@ const firebaseModuleScript = `
       register: async ({ login, email, password }) => {
         const credentials = await createUserWithEmailAndPassword(auth, email, password);
         const preferredLogin = sanitizeLogin(login) || login.trim();
+        let verificationEmailSent = false;
 
         try {
           const snapshot = await resolveUserSnapshot(credentials.user, {
@@ -1135,13 +1177,24 @@ const firebaseModuleScript = `
             displayName: snapshot?.login ?? preferredLogin,
           });
 
+          try {
+            await sendEmailVerification(credentials.user);
+            verificationEmailSent = true;
+          } catch (error) {
+            console.error("Failed to send verification email:", error);
+          }
+
           await syncPresence(credentials.user, {
             path: window.location.pathname,
             source: "register",
             forceVisit: true,
           });
 
-          return snapshot;
+          return {
+            ...snapshot,
+            emailVerified: Boolean(credentials.user.emailVerified),
+            verificationEmailSent,
+          };
         } catch (error) {
           const errorCode = getErrorCode(error);
 
@@ -1189,6 +1242,7 @@ const firebaseModuleScript = `
       onAuthStateChanged: (callback) =>
         onAuthStateChanged(auth, async (user) => {
           stopPresenceTracking();
+          markAuthStateSettled();
 
           if (!user) {
             callback(publishUserSnapshot(null));
@@ -1214,6 +1268,8 @@ const firebaseModuleScript = `
       error instanceof Error ? error.message : "Failed to initialize Firebase Auth.";
 
     window.sakuraFirebaseAuthError = message;
+    window.sakuraAuthStateSettled = true;
+    window.dispatchEvent(new CustomEvent(AUTH_STATE_SETTLED_EVENT));
     window.dispatchEvent(
       new CustomEvent("sakura-auth-error", {
         detail: { message }

@@ -9,6 +9,8 @@ type UserProfile = {
   uid: string;
   isAnonymous: boolean;
   email: string | null;
+  emailVerified?: boolean;
+  verificationEmailSent?: boolean;
   login: string | null;
   displayName: string | null;
   profileId: number | null;
@@ -33,12 +35,14 @@ type Bridge = {
 type RuntimeWindow = Window & {
   firebaseConfig?: { projectId?: string };
   sakuraCurrentUserSnapshot?: UserProfile | null;
+  sakuraAuthStateSettled?: boolean;
   sakuraFirebaseAuth?: Bridge;
   sakuraFirebaseAuthError?: string;
 };
 
 const AUTH_READY_EVENT = "sakura-auth-ready";
 const AUTH_ERROR_EVENT = "sakura-auth-error";
+const AUTH_STATE_SETTLED_EVENT = "sakura-auth-state-settled";
 const USER_UPDATE_EVENT = "sakura-user-update";
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
 const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
@@ -342,6 +346,7 @@ const getInitialBootstrap = () => {
 
   return {
     authReady: typeof window !== "undefined" && Boolean(getWindowState().sakuraFirebaseAuth),
+    authStateSettled: typeof window !== "undefined" && Boolean(getWindowState().sakuraAuthStateSettled),
     authError: typeof window === "undefined" ? null : getWindowState().sakuraFirebaseAuthError ?? null,
     currentUser,
     requestedProfileId,
@@ -354,6 +359,7 @@ export default function ProfilePage() {
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const [bootstrap] = useState(getInitialBootstrap);
   const [authReady, setAuthReady] = useState(bootstrap.authReady);
+  const [authStateSettled, setAuthStateSettled] = useState(bootstrap.authStateSettled);
   const [authError, setAuthError] = useState<string | null>(bootstrap.authError);
   const [currentUser, setCurrentUser] = useState<UserProfile | null>(bootstrap.currentUser);
   const [profile, setProfile] = useState<UserProfile | null>(bootstrap.profile);
@@ -383,6 +389,7 @@ export default function ProfilePage() {
     const sync = () => {
       if (runtime.sakuraFirebaseAuth) {
         setAuthReady(true);
+        setAuthStateSettled(Boolean(runtime.sakuraAuthStateSettled));
         setAuthError(null);
         setCurrentUser(runtime.sakuraCurrentUserSnapshot ?? null);
         unsubscribe();
@@ -390,6 +397,9 @@ export default function ProfilePage() {
         return;
       }
       if (runtime.sakuraFirebaseAuthError) setAuthError(runtime.sakuraFirebaseAuthError);
+    };
+    const onAuthStateSettled = () => {
+      setAuthStateSettled(Boolean(getWindowState().sakuraAuthStateSettled));
     };
     const onUserUpdate = () => setCurrentUser(getWindowState().sakuraCurrentUserSnapshot ?? null);
     const onError = () => setAuthError(getWindowState().sakuraFirebaseAuthError ?? "Firebase Auth did not load.");
@@ -399,18 +409,20 @@ export default function ProfilePage() {
     sync();
     window.addEventListener(AUTH_READY_EVENT, sync);
     window.addEventListener(AUTH_ERROR_EVENT, onError);
+    window.addEventListener(AUTH_STATE_SETTLED_EVENT, onAuthStateSettled);
     window.addEventListener(USER_UPDATE_EVENT, onUserUpdate);
     return () => {
       window.clearTimeout(timeoutId);
       window.removeEventListener(AUTH_READY_EVENT, sync);
       window.removeEventListener(AUTH_ERROR_EVENT, onError);
+      window.removeEventListener(AUTH_STATE_SETTLED_EVENT, onAuthStateSettled);
       window.removeEventListener(USER_UPDATE_EVENT, onUserUpdate);
       unsubscribe();
     };
   }, []);
 
   useEffect(() => {
-    if (typeof window === "undefined" || !authReady || authError) return;
+    if (typeof window === "undefined" || !authReady || !authStateSettled || authError) return;
     const runtime = getWindowState();
     const requestedId = requestedProfileId;
     const visibleCurrentUser = currentUser && !currentUser.isAnonymous ? currentUser : null;
@@ -438,7 +450,7 @@ export default function ProfilePage() {
         setProfileError(error instanceof Error ? error.message : "Could not load this profile.");
       })
       .finally(() => setIsProfileLoading(false));
-  }, [authReady, authError, currentUser, requestedProfileId]);
+  }, [authReady, authStateSettled, authError, currentUser, requestedProfileId]);
 
   useEffect(() => {
     if (!currentUser?.uid || currentUser.isAnonymous || !getWindowState().sakuraFirebaseAuth) return;
@@ -454,7 +466,7 @@ export default function ProfilePage() {
   const shouldShowPendingState =
     !authError &&
     !activeProfile &&
-    (!authReady || isProfileLoading || (requestedProfileId !== null && !profileError));
+    (!authReady || !authStateSettled || isProfileLoading || (requestedProfileId !== null && !profileError));
 
   useEffect(() => {
     if (!hasHydrated || !shouldShowPendingState) {
