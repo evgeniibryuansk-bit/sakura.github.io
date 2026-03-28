@@ -42,9 +42,6 @@ export default function FirebaseAuthBoot() {
     }
 
     const runtime = getWindowState();
-    let idleTimerId = 0;
-    let idleCallbackId: number | null = null;
-    const interactionEvents = ["pointerdown", "keydown", "touchstart"] as const;
 
     const loadRuntime = async (startFirebase = false) => {
       if (!runtime.sakuraFirebaseRuntimeInjected && !runtime.sakuraFirebaseRuntimePromise) {
@@ -81,63 +78,11 @@ export default function FirebaseAuthBoot() {
     const bootNow = () => loadRuntime(true);
 
     runtime.sakuraStartFirebaseAuth = bootNow;
+    void loadRuntime(false);
 
     if (/(?:^|\/)profile(?:\/|$)/.test(window.location.pathname)) {
       void bootNow();
-      return;
     }
-
-    const handleInteractionStart = () => {
-      interactionEvents.forEach((eventName) => {
-        window.removeEventListener(eventName, handleInteractionStart);
-      });
-
-      if (
-        idleCallbackId !== null &&
-        "cancelIdleCallback" in window &&
-        typeof window.cancelIdleCallback === "function"
-      ) {
-        window.cancelIdleCallback(idleCallbackId);
-      }
-
-      if (idleTimerId) {
-        window.clearTimeout(idleTimerId);
-      }
-
-      void bootNow();
-    };
-
-    interactionEvents.forEach((eventName) => {
-      window.addEventListener(eventName, handleInteractionStart, { once: true, passive: true });
-    });
-
-    if ("requestIdleCallback" in window && typeof window.requestIdleCallback === "function") {
-      idleCallbackId = window.requestIdleCallback(() => {
-        void loadRuntime(false);
-      }, { timeout: 1500 });
-    } else {
-      idleTimerId = window.setTimeout(() => {
-        void loadRuntime(false);
-      }, 1200);
-    }
-
-    return () => {
-      interactionEvents.forEach((eventName) => {
-        window.removeEventListener(eventName, handleInteractionStart);
-      });
-
-      if (
-        idleCallbackId !== null &&
-        "cancelIdleCallback" in window &&
-        typeof window.cancelIdleCallback === "function"
-      ) {
-        window.cancelIdleCallback(idleCallbackId);
-      }
-
-      if (idleTimerId) {
-        window.clearTimeout(idleTimerId);
-      }
-    };
   }, []);
 
   return null;

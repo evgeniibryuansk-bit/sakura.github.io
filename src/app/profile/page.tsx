@@ -634,7 +634,11 @@ export default function ProfilePage() {
           "Firebase Auth is still loading. Reload the page if this does not clear soon."
       );
     const timeoutId = window.setTimeout(() => {
-      if (!getWindowState().sakuraFirebaseAuth && !getWindowState().sakuraFirebaseAuthError)
+      if (
+        !getWindowState().sakuraFirebaseAuth &&
+        !getWindowState().sakuraStartFirebaseAuth &&
+        !getWindowState().sakuraFirebaseAuthError
+      )
         setAuthError("Firebase Auth is still loading. Reload the page if this does not clear soon.");
     }, 12000);
     sync();

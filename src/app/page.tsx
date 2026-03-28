@@ -594,7 +594,11 @@ function HeaderAuth() {
     };
 
     const timeoutId = window.setTimeout(() => {
-      if (!window.sakuraFirebaseAuth && !window.sakuraFirebaseAuthError) {
+      if (
+        !window.sakuraFirebaseAuth &&
+        !window.sakuraStartFirebaseAuth &&
+        !window.sakuraFirebaseAuthError
+      ) {
         setAuthLoadError(
           "Firebase Auth module did not load. Проверьте соединение и настройки Firebase."
         );
