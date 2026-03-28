@@ -48,7 +48,6 @@ const AUTH_ERROR_EVENT = "sakura-auth-error";
 const AUTH_STATE_SETTLED_EVENT = "sakura-auth-state-settled";
 const USER_UPDATE_EVENT = "sakura-user-update";
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
-const PROFILE_ORIGIN_PATH_STORAGE_KEY = "sakura-profile-origin-path";
 const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
 const PROFILE_BUILD_MARKER = "role-colors-v14";
 const repoBasePath = "/sakura.github.io";
@@ -82,31 +81,30 @@ const parseProfileId = (path: string | null) => {
   const raw = path.slice(`${repoBasePath}/profile/`.length);
   return /^\d+$/.test(raw) ? Number(raw) : null;
 };
-const clearStoredProfileOriginPath = () => {
-  if (typeof window === "undefined") return;
+const getStoredCurrentProfileId = () => {
+  if (typeof window === "undefined") return null;
   try {
-    window.sessionStorage.removeItem(PROFILE_ORIGIN_PATH_STORAGE_KEY);
-  } catch (error) {}
+    const storedProfileId = window.sessionStorage.getItem(CURRENT_PROFILE_ID_STORAGE_KEY);
+    return storedProfileId && /^\d+$/.test(storedProfileId) ? Number(storedProfileId) : null;
+  } catch (error) {
+    return null;
+  }
 };
-const redirectToStoredProfileOrigin = (requestedProfileId: number) => {
+const redirectToLocalProfile = (requestedProfileId: number, currentProfileId: number | null) => {
   if (typeof window === "undefined") return false;
 
-  try {
-    const originPath = window.sessionStorage.getItem(PROFILE_ORIGIN_PATH_STORAGE_KEY);
-    const originProfileId = parseProfileId(originPath);
+  const localProfileId =
+    typeof currentProfileId === "number" && currentProfileId > 0 ? currentProfileId : getStoredCurrentProfileId();
 
-    if (!originPath || originProfileId === null || originProfileId === requestedProfileId) {
-      window.sessionStorage.removeItem(PROFILE_ORIGIN_PATH_STORAGE_KEY);
-      return false;
-    }
-
-    window.sessionStorage.setItem(PROFILE_PATH_STORAGE_KEY, originPath);
-    window.sessionStorage.removeItem(PROFILE_ORIGIN_PATH_STORAGE_KEY);
-    window.location.replace(`${repoBasePath}/profile`);
-    return true;
-  } catch (error) {
+  if (localProfileId === null || localProfileId === requestedProfileId) {
     return false;
   }
+
+  try {
+    window.sessionStorage.removeItem(PROFILE_PATH_STORAGE_KEY);
+  } catch (error) {}
+  window.location.replace(profilePath(localProfileId));
+  return true;
 };
 const formatTime = (value: string | null) =>
   value
@@ -465,7 +463,6 @@ export default function ProfilePage() {
     const requestedId = requestedProfileId;
     const visibleCurrentUser = currentUser && !currentUser.isAnonymous ? currentUser : null;
     if (requestedId === null || visibleCurrentUser?.profileId === requestedId) {
-      clearStoredProfileOriginPath();
       setProfile(visibleCurrentUser);
       setProfileError(null);
       setIsProfileLoading(false);
@@ -482,11 +479,10 @@ export default function ProfilePage() {
       .then((user) => {
         setProfile(user);
         if (!user) {
-          if (redirectToStoredProfileOrigin(requestedId)) return;
+          if (redirectToLocalProfile(requestedId, visibleCurrentUser?.profileId ?? null)) return;
           setProfileError(`Profile #${requestedId} was not found.`);
           return;
         }
-        clearStoredProfileOriginPath();
         if (window.location.pathname !== profilePath(requestedId)) window.history.replaceState(null, "", profilePath(requestedId));
       })
       .catch((error) => {

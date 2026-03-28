@@ -1,5 +1,4 @@
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
-const PROFILE_ORIGIN_PATH_STORAGE_KEY = "sakura-profile-origin-path";
 const repoBasePath = "/sakura.github.io";
 const redirectScript = `
   (function () {
@@ -8,23 +7,6 @@ const redirectScript = `
 
     if (profilePattern.test(currentPath)) {
       window.sessionStorage.setItem(${JSON.stringify(PROFILE_PATH_STORAGE_KEY)}, currentPath);
-      try {
-        var referrerPath = null;
-        if (document.referrer) {
-          var referrerUrl = new URL(document.referrer);
-          if (referrerUrl.origin === window.location.origin) {
-            referrerPath = referrerUrl.pathname;
-          }
-        }
-
-        if (referrerPath && profilePattern.test(referrerPath) && referrerPath !== currentPath) {
-          window.sessionStorage.setItem(${JSON.stringify(PROFILE_ORIGIN_PATH_STORAGE_KEY)}, referrerPath);
-        } else {
-          window.sessionStorage.removeItem(${JSON.stringify(PROFILE_ORIGIN_PATH_STORAGE_KEY)});
-        }
-      } catch (error) {
-        window.sessionStorage.removeItem(${JSON.stringify(PROFILE_ORIGIN_PATH_STORAGE_KEY)});
-      }
       window.location.replace(${JSON.stringify(repoBasePath + "/profile")});
       return;
     }
