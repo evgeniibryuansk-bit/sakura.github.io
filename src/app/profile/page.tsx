@@ -392,6 +392,29 @@ const roleHeadlineStyle = (role: string | null | undefined): CSSProperties => {
     textShadow: typeof badgeStyle.boxShadow === "string" ? badgeStyle.boxShadow : "0 0 18px rgba(255,255,255,0.08)",
   };
 };
+const roleCommentAuthorStyle = (role: string | null | undefined): CSSProperties => {
+  if (!role) {
+    return {
+      color: "#ffffff",
+      textShadow: "0 0 14px rgba(255,255,255,0.06)",
+    };
+  }
+
+  const badgeStyle = roleBadgeStyle(role);
+
+  return {
+    color:
+      typeof badgeStyle.borderColor === "string"
+        ? badgeStyle.borderColor
+        : typeof badgeStyle.color === "string"
+          ? badgeStyle.color
+          : "#ffffff",
+    textShadow:
+      typeof badgeStyle.boxShadow === "string"
+        ? badgeStyle.boxShadow
+        : "0 0 14px rgba(255,255,255,0.06)",
+  };
+};
 const ROLE_MANAGER_NAMES = new Set(["root"]);
 const COMMENT_MODERATOR_ROLE_NAMES = new Set(["root", "co-owner", "moderator"]);
 const REMOVED_ROLE_NAMES = new Set([
@@ -1120,7 +1143,7 @@ export default function ProfilePage() {
                       const isDeletingComment = deletingCommentId === comment.id;
                       const showDeleteAction = canDeleteComment(comment);
                       const commentInitials = initialsFromText(comment.authorName);
-                      const commentAuthorStyle = roleHeadlineStyle(comment.authorAccentRole);
+                      const commentAuthorStyle = roleCommentAuthorStyle(comment.authorAccentRole);
 
                       return <div key={comment.id} className="rounded-[24px] border border-[#1d1d1d] bg-[#090909] px-4 py-4">
                         <div className="flex items-start justify-between gap-3">
