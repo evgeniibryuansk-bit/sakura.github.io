@@ -251,7 +251,7 @@ const firebaseModuleScript = `
       return "moderator";
     }
 
-    if (compactRole === "sponsor") {
+    if (/^s?pons?or$/.test(compactRole)) {
       return "sponsor";
     }
 
@@ -276,6 +276,10 @@ const firebaseModuleScript = `
         ? "user"
         : role.trim().replace(/\s+/g, " ")
       : "";
+  const canonicalRoleLabel = (role) => {
+    const normalizedRole = normalizeRoleName(role);
+    return normalizedRole || cleanRoleLabel(role);
+  };
 
   const REMOVED_ROLE_NAMES = new Set([
     "super administrator",
@@ -306,7 +310,7 @@ const firebaseModuleScript = `
     const nextRoles = Array.isArray(roles)
       ? roles
         .filter((role) => typeof role === "string")
-        .map(cleanRoleLabel)
+        .map(canonicalRoleLabel)
         .filter(Boolean)
         .filter((role) => !REMOVED_ROLE_NAMES.has(normalizeRoleName(role)))
       : [];

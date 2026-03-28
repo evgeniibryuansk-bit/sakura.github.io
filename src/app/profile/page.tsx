@@ -147,7 +147,7 @@ const normalizeRoleName = (role: string) => {
     return "moderator";
   }
 
-  if (compactRole === "sponsor") {
+  if (/^s?pons?or$/.test(compactRole)) {
     return "sponsor";
   }
 
