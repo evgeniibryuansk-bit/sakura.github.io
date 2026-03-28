@@ -73,7 +73,7 @@ const AUTH_STATE_SETTLED_EVENT = "sakura-auth-state-settled";
 const USER_UPDATE_EVENT = "sakura-user-update";
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
 const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
-const PROFILE_BUILD_MARKER = "role-colors-v26";
+const PROFILE_BUILD_MARKER = "role-colors-v27";
 const repoBasePath = "/sakura.github.io";
 const restoreProfilePathScript = `
   (function () {
@@ -1435,13 +1435,21 @@ export default function ProfilePage() {
             </div>
 
             <div className="flex flex-col gap-6">
-              {isOwner && activeProfile ? <div className="rounded-[32px] border border-[#201517] bg-[radial-gradient(circle_at_top,rgba(255,183,197,0.14),transparent_72%),linear-gradient(180deg,#0d0d0d_0%,#090909_100%)] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
+              {activeProfile ? <div className="rounded-[32px] border border-[#201517] bg-[radial-gradient(circle_at_top,rgba(255,183,197,0.14),transparent_72%),linear-gradient(180deg,#0d0d0d_0%,#090909_100%)] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Profile Settings</p>
-                <h2 className="mt-3 text-[22px] font-black uppercase tracking-tight text-white">Manage Your Identity</h2>
-                <p className="mt-3 text-sm leading-relaxed text-gray-400">Use this column to update your public profile name, login, avatar, and account-related settings.</p>
+                <h2 className="mt-3 text-[22px] font-black uppercase tracking-tight text-white">
+                  {isOwner ? "Manage Your Identity" : "Profile Controls"}
+                </h2>
+                <p className="mt-3 text-sm leading-relaxed text-gray-400">
+                  {isOwner
+                    ? "Use this column to update your public profile name, login, avatar, and account-related settings."
+                    : canOpenAdminPanel
+                      ? "Profile settings and account access details for the currently opened account."
+                      : "Overview and account-related details for this profile."}
+                </p>
               </div> : null}
 
-              {isOwner && activeProfile ? <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
+              {activeProfile ? <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <div className="flex items-start justify-between gap-4">
                   <div>
                     <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Subscription</p>
