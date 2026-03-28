@@ -67,7 +67,7 @@
   const AUTH_STATE_SETTLED_EVENT = "sakura-auth-state-settled";
   const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
   const AVATAR_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif"]);
-  const LOGIN_PATTERN = /^[A-Za-zРђ-РЇР°-СЏРЃС‘0-9._-]+$/;
+  const LOGIN_PATTERN = /^[A-Za-z\u0400-\u04FF0-9._-]+$/;
 
   const createFirebaseError = (code, message) => {
     const error = new Error(message);
@@ -205,7 +205,7 @@
     value
       .trim()
       .replace(/\\s+/g, "")
-      .replace(/[^A-Za-zРђ-РЇР°-СЏРЃС‘0-9._-]/g, "")
+      .replace(/[^A-Za-z\u0400-\u04FF0-9._-]/g, "")
       .slice(0, LOGIN_MAX_LENGTH);
 
   const normalizeLogin = (value) => sanitizeLogin(value).toLocaleLowerCase();
