@@ -1485,6 +1485,10 @@ const firebaseModuleScript = `
         authorPhotoURL: authorSnapshot?.photoURL ?? user.photoURL ?? null,
         authorAccentRole: pickCommentAccentRole(authorSnapshot?.roles ?? [], "user"),
       };
+      const photoCommentPayload = {
+        ...persistedCommentPayload,
+        authorPhotoURL: authorSnapshot?.photoURL ?? user.photoURL ?? null,
+      };
       const timestampCommentPayload = {
         ...stripNullishFields({
           profileId,
@@ -1502,20 +1506,28 @@ const firebaseModuleScript = `
       } catch (error) {
         if (isPermissionDeniedError(error)) {
           try {
-            await setDoc(commentRef, persistedCommentPayload);
+            await setDoc(commentRef, photoCommentPayload);
           } catch (fallbackError) {
             if (isPermissionDeniedError(fallbackError)) {
               try {
-                await setDoc(commentRef, timestampCommentPayload);
-              } catch (timestampError) {
-                if (isPermissionDeniedError(timestampError)) {
-                  throw createFirebaseError(
-                    "comments/write-denied",
-                    "Comments could not be saved. Check Firestore rules for profileComments."
-                  );
+                await setDoc(commentRef, persistedCommentPayload);
+              } catch (legacyError) {
+                if (isPermissionDeniedError(legacyError)) {
+                  try {
+                    await setDoc(commentRef, timestampCommentPayload);
+                  } catch (timestampError) {
+                    if (isPermissionDeniedError(timestampError)) {
+                      throw createFirebaseError(
+                        "comments/write-denied",
+                        "Comments could not be saved. Check Firestore rules for profileComments."
+                      );
+                    }
+
+                    throw timestampError;
+                  }
                 }
 
-                throw timestampError;
+                throw legacyError;
               }
             }
 
