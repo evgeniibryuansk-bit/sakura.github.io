@@ -2252,19 +2252,23 @@
     };
 
     window.sakuraFirebaseAuth = {
-      register: async ({ login, email, password }) => {
+      register: async ({ login, displayName, email, password }) => {
         const credentials = await createUserWithEmailAndPassword(auth, email, password);
         const preferredLogin = sanitizeLogin(login) || login.trim();
+        const preferredDisplayName = sanitizeDisplayName(displayName);
         let verificationEmailSent = false;
 
         try {
           const snapshot = await resolveUserSnapshot(credentials.user, {
             requestedLogin: login,
-            preferredDisplayName: preferredLogin,
+            preferredDisplayName: preferredDisplayName || preferredLogin,
           });
 
+          const registrationDisplayName =
+            snapshot?.displayName ?? preferredDisplayName ?? snapshot?.login ?? preferredLogin;
+
           await updateProfile(credentials.user, {
-            displayName: snapshot?.login ?? preferredLogin,
+            displayName: registrationDisplayName,
           });
 
           try {

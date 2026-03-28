@@ -116,6 +116,7 @@ type FirebaseAuthBridge = {
   loginWithGoogle: () => Promise<AuthUserSnapshot | null>;
   register: (credentials: {
     login: string;
+    displayName?: string;
     email: string;
     password: string;
   }) => Promise<AuthUserSnapshot | null>;
@@ -543,6 +544,7 @@ function HeaderAuth() {
   const [authLoadError, setAuthLoadError] = useState<string | null>(null);
   const [currentUser, setCurrentUser] = useState<AuthUserSnapshot | null>(null);
   const [identifier, setIdentifier] = useState("");
+  const [profileName, setProfileName] = useState("");
   const [loginName, setLoginName] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
@@ -681,6 +683,7 @@ function HeaderAuth() {
   const closeModal = () => {
     setIsModalOpen(false);
     setSubmitError(null);
+    setProfileName("");
     setLoginName("");
     setPassword("");
     setConfirmPassword("");
@@ -689,6 +692,7 @@ function HeaderAuth() {
   const switchMode = (nextMode: AuthMode) => {
     setMode(nextMode);
     setSubmitError(null);
+    setProfileName("");
     setLoginName("");
     setPassword("");
     setConfirmPassword("");
@@ -760,6 +764,7 @@ function HeaderAuth() {
       if (mode === "register") {
         snapshot = await window.sakuraFirebaseAuth.register({
           login: loginName.trim().replace(/\s+/g, ""),
+          displayName: profileName.trim(),
           email: identifier.trim(),
           password,
         });
@@ -945,7 +950,7 @@ function HeaderAuth() {
                   </h2>
                   <p className="mt-2 text-sm text-gray-400">
                     {mode === "register"
-                      ? "Create a login so it appears on your profile and works for sign-in."
+                      ? "Create a username for your profile and a separate login for sign-in."
                       : "You can sign in with your email or login through Firebase Auth."}
                   </p>
                   <p className="mt-2 hidden text-sm text-gray-400">
@@ -1025,6 +1030,26 @@ function HeaderAuth() {
               </div>
 
               <form className="mt-5 space-y-4" onSubmit={handleSubmit}>
+                {mode === "register" ? (
+                  <label className="block">
+                    <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">
+                      Username
+                    </span>
+                    <input
+                      type="text"
+                      value={profileName}
+                      maxLength={48}
+                      autoComplete="nickname"
+                      onChange={(event) => setProfileName(event.target.value)}
+                      className="w-full rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55"
+                      placeholder="Absolute"
+                    />
+                    <span className="mt-2 block text-xs leading-relaxed text-gray-500">
+                      Username is shown above your login on the profile.
+                    </span>
+                  </label>
+                ) : null}
+
                 {mode === "register" ? (
                   <label className="block">
                     <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">
