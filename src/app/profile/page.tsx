@@ -2003,16 +2003,13 @@ export default function ProfilePage() {
 
               {(!isOwner || !isProfileControlsOpen || activeProfile?.isBanned) ? <div className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Profile Comments</p>
-                <p className="mt-3 text-sm leading-relaxed text-gray-400">A public wall for this profile. Only signed-in users can leave a message.</p>
-
                 {visibleCurrentUser && !isCurrentAccountBanned && !isCurrentAccountVerificationLocked ? (
                   <form onSubmit={handleCommentSubmit} className="mt-5">
                     <label className="block">
                       <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">New Comment</span>
                       <textarea value={commentInput} maxLength={280} rows={4} onChange={(event) => setCommentInput(event.target.value)} className="w-full resize-y rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder={`Write something for ${primaryName}...`} />
                     </label>
-                    <div className="mt-2 flex items-center justify-between gap-3 text-xs text-gray-500">
-                      <span>Posting as @{visibleCurrentUser.login ?? visibleCurrentUser.displayName ?? "member"}</span>
+                    <div className="mt-2 flex items-center justify-end gap-3 text-xs text-gray-500">
                       <span>{commentInput.trim().length}/280</span>
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
