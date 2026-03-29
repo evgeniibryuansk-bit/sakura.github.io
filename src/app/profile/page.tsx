@@ -807,7 +807,7 @@ export default function ProfilePage() {
   const normalizedProfileRoleSet = new Set(profileRoles.map((role) => normalizeRoleName(role)));
   const subscriptionSummary = normalizedProfileRoleSet.has("root")
     ? {
-        title: "Staff Access",
+        title: "Cheat Access",
         badgeRole: "root",
         status: "Internal",
         description: "Root access is active for this account. Profile tools and privileged controls are unlocked.",
@@ -1437,14 +1437,14 @@ export default function ProfilePage() {
                   <div className="flex items-start justify-between gap-4">
                     <div>
                       <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Subscription</p>
-                      <p className="mt-3 text-sm leading-relaxed text-gray-400">Current access tier and profile perks for this account.</p>
+                      <p className="mt-3 text-sm leading-relaxed text-gray-400">Subscription Pricing</p>
                     </div>
                     <span style={{ ...subscriptionBadgeStyle, ...roleBadgeTextStyle }} className="inline-flex shrink-0 rounded-full border px-3 py-1 text-[10px] font-bold">
                       {subscriptionSummary.status}
                     </span>
                   </div>
                   <div className="mt-5 rounded-[22px] border border-[#24171b] bg-[radial-gradient(circle_at_top_left,rgba(255,183,197,0.08),transparent_62%),#090909] p-4">
-                    <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#b78a95]">Current Tier</p>
+                    <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#b78a95]">Current Subscription</p>
                     <p className="mt-3 text-lg font-bold text-white">{subscriptionSummary.title}</p>
                     <p className="mt-3 text-xs leading-relaxed text-gray-400">{subscriptionSummary.description}</p>
                   </div>
