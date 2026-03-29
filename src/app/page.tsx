@@ -1229,7 +1229,9 @@ export default function Home() {
           </m.h1>
 
           <p className="mb-10 max-w-xl text-center text-lg leading-relaxed text-gray-400">
-            Бесплатное решение чита для Dota 2. Работа с памятью, и приятное глазу меню.
+            Приватный чит для Dota 2.
+            <br />
+            Тестовый период на 7 дней.
           </p>
 
           <div className="flex gap-4">
