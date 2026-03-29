@@ -1270,7 +1270,7 @@ export default function Home() {
             <button
               type="button"
               onClick={handleHeroTrialClick}
-              className="inline-flex items-center justify-center rounded-full border border-[#ff3b30]/70 bg-[#130d0f] px-8 py-3 text-sm font-semibold text-[#ffd0d7] shadow-[0_0_24px_rgba(255,59,48,0.18)] transition-all hover:border-[#ff6b5e] hover:bg-[#1a1012] hover:text-white active:scale-95"
+              className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/60 bg-[#140f12] px-8 py-3 text-sm font-semibold text-[#ffd8e1] shadow-[0_0_24px_rgba(255,183,197,0.16)] transition-all hover:border-[#ffd1db] hover:bg-[#1c1217] hover:text-white active:scale-95"
             >
               Тестовый период на 7 дней
             </button>
@@ -1314,7 +1314,7 @@ function FeatureBox({
       whileInView={{ opacity: 1, y: 0 }}
       viewport={{ once: true }}
       transition={{ duration: 0.5, delay }}
-      className="rounded-[28px] border border-[#2b1b1e] bg-[radial-gradient(circle_at_top_left,rgba(255,90,105,0.09),transparent_55%),#0d0d0d] p-8 shadow-[0_0_30px_rgba(255,59,48,0.06)] transition-all duration-500 hover:border-[#ff6b5e]/60 hover:shadow-[0_0_38px_rgba(255,59,48,0.1)]"
+      className="rounded-[28px] border border-[#ffb7c5]/18 bg-[radial-gradient(circle_at_top_left,rgba(255,183,197,0.12),transparent_55%),#0d0d0d] p-8 shadow-[0_0_30px_rgba(255,183,197,0.06)] transition-all duration-500 hover:border-[#ffb7c5]/45 hover:shadow-[0_0_38px_rgba(255,183,197,0.1)]"
     >
       <h3 className="mb-4 font-mono text-[10px] uppercase tracking-[0.28em] text-[#ffb7c5]/70">{title}</h3>
       <p className="max-w-[40rem] text-sm leading-relaxed text-gray-300">{desc}</p>
@@ -1837,10 +1837,10 @@ function FeatureShowcase() {
             whileInView={{ opacity: 1, y: 0 }}
             viewport={{ once: true, amount: 0.25 }}
             transition={{ duration: 0.35 }}
-            className="flex min-h-[420px] flex-col justify-between rounded-[28px] border border-[#2b1b1e] bg-[radial-gradient(circle_at_top_left,rgba(255,90,105,0.09),transparent_55%),#0d0d0d] p-8 shadow-[0_0_30px_rgba(255,59,48,0.06)]"
+            className="flex min-h-[420px] flex-col justify-between rounded-[28px] border border-[#ffb7c5]/18 bg-[radial-gradient(circle_at_top_left,rgba(255,183,197,0.12),transparent_55%),#0d0d0d] p-8 shadow-[0_0_30px_rgba(255,183,197,0.06)]"
           >
             <div>
-              <span className="mb-6 inline-flex rounded-full border border-[#2b1b1e] bg-[#1a1012] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.35em] text-[#ffb7c5]">
+              <span className="mb-6 inline-flex rounded-full border border-[#ffb7c5]/20 bg-[#1c1217] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.35em] text-[#ffb7c5]">
                 {slide.index}
               </span>
               <h3 className="mb-4 text-3xl font-black uppercase tracking-tighter text-white">
@@ -1849,7 +1849,7 @@ function FeatureShowcase() {
               <p className="max-w-md text-sm leading-relaxed text-gray-400">{slide.desc}</p>
             </div>
 
-            <div className="rounded-[24px] border border-[#2b1b1e] bg-black/30 p-5">
+            <div className="rounded-[24px] border border-[#ffb7c5]/14 bg-black/30 p-5">
               <span className="mb-3 block font-mono text-[10px] uppercase tracking-[0.35em] text-[#ffb7c5]/60">
                 Preview
               </span>
@@ -1864,7 +1864,7 @@ function FeatureShowcase() {
               type="button"
               onClick={goToPrevious}
               aria-label="Предыдущая карточка"
-              className="absolute -left-2 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#130d0f] text-[#ffb7c5] shadow-[0_0_20px_rgba(255,59,48,0.08)] transition hover:border-[#ff6b5e]/50 hover:bg-[#1a1012] md:-left-6"
+              className="absolute -left-2 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-[#ffb7c5]/20 bg-[#140f12] text-[#ffb7c5] shadow-[0_0_20px_rgba(255,183,197,0.08)] transition hover:border-[#ffb7c5]/55 hover:bg-[#1c1217] md:-left-6"
             >
               ←
             </button>
@@ -1877,19 +1877,19 @@ function FeatureShowcase() {
               transition={{ duration: 0.35 }}
               className="w-full"
             >
-              <div className="relative overflow-hidden rounded-[32px] border border-[#2b1b1e] bg-[radial-gradient(circle_at_top_left,rgba(255,90,105,0.08),transparent_50%),#090909]">
+              <div className="relative overflow-hidden rounded-[32px] border border-[#ffb7c5]/16 bg-[radial-gradient(circle_at_top_left,rgba(255,183,197,0.1),transparent_50%),#090909]">
                 <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/60 via-black/20 to-transparent"></div>
                 <div className="absolute inset-x-8 top-8 flex items-center justify-between">
                   <span className="font-mono text-[10px] uppercase tracking-[0.35em] text-[#ffb7c5]">
                     {slide.mediaOverlayTitle}
                   </span>
-                  <span className="rounded-full border border-[#2b1b1e] bg-[#1a1012] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-[#ffb7c5]/70">
+                  <span className="rounded-full border border-[#ffb7c5]/20 bg-[#1c1217] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-[#ffb7c5]/80">
                     Coming soon
                   </span>
                 </div>
                 <div className="flex aspect-[16/9] items-center justify-center px-8 py-10">
-                  <div className="flex w-full max-w-[28rem] flex-col items-center justify-center rounded-[28px] border border-dashed border-[#ffb7c5]/25 bg-black/25 px-8 py-12 text-center">
-                    <span className="mb-4 inline-flex rounded-full border border-[#2b1b1e] bg-[#130d0f] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.28em] text-[#ffb7c5]">
+                  <div className="flex w-full max-w-[28rem] flex-col items-center justify-center rounded-[28px] border border-dashed border-[#ffb7c5]/30 bg-black/25 px-8 py-12 text-center shadow-[0_0_26px_rgba(255,183,197,0.05)]">
+                    <span className="mb-4 inline-flex rounded-full border border-[#ffb7c5]/20 bg-[#140f12] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.28em] text-[#ffb7c5]">
                       Screenshots
                     </span>
                     <p className="text-xl font-black uppercase tracking-[0.04em] text-white">
@@ -1921,7 +1921,7 @@ function FeatureShowcase() {
               type="button"
               onClick={goToNext}
               aria-label="Следующая карточка"
-              className="absolute -right-2 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#130d0f] text-[#ffb7c5] shadow-[0_0_20px_rgba(255,59,48,0.08)] transition hover:border-[#ff6b5e]/50 hover:bg-[#1a1012] md:-right-6"
+              className="absolute -right-2 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-[#ffb7c5]/20 bg-[#140f12] text-[#ffb7c5] shadow-[0_0_20px_rgba(255,183,197,0.08)] transition hover:border-[#ffb7c5]/55 hover:bg-[#1c1217] md:-right-6"
             >
               →
             </button>
