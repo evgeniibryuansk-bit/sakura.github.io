@@ -2023,13 +2023,11 @@ export default function ProfilePage() {
                   <form onSubmit={handleCommentSubmit} className="mt-5">
                     <label className="block">
                       <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">New Comment</span>
-                      <textarea ref={commentTextareaRef} value={commentInput} maxLength={280} rows={4} onChange={(event) => setCommentInput(event.target.value)} onInput={(event) => syncTextareaHeight(event.currentTarget)} className="w-full resize-none overflow-hidden rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder={`Write something for ${primaryName}...`} />
+                      <textarea ref={commentTextareaRef} value={commentInput} maxLength={280} rows={3} onChange={(event) => setCommentInput(event.target.value)} onInput={(event) => syncTextareaHeight(event.currentTarget)} className="w-full resize-none overflow-hidden rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder={`Write something for ${primaryName}...`} />
                     </label>
-                    <div className="mt-2 flex items-center justify-end gap-3 text-xs text-gray-500">
-                      <span>{commentInput.trim().length}/280</span>
-                    </div>
-                    <div className="mt-4 flex flex-wrap items-center gap-3">
+                    <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
                       <button type="submit" disabled={isCommentSubmitting || !commentInput.trim()} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">{isCommentSubmitting ? "Posting..." : "Post Comment"}</button>
+                      <span className="text-xs text-gray-500">{commentInput.trim().length}/280</span>
                     </div>
                     {commentError ? <p className="mt-3 text-xs leading-relaxed text-[#ff9aa9]">{commentError}</p> : null}
                     {commentSuccess ? <p className="mt-3 text-xs leading-relaxed text-[#8ce5b2]">{commentSuccess}</p> : null}
@@ -2080,14 +2078,16 @@ export default function ProfilePage() {
                           </div>
                         </div>
                         {isEditingComment ? <div className="mt-3">
-                          <textarea ref={editingCommentTextareaRef} value={editingCommentMessage} maxLength={280} rows={4} onChange={(event) => setEditingCommentMessage(event.target.value)} onInput={(event) => syncTextareaHeight(event.currentTarget)} className="w-full resize-none overflow-hidden rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder="Update comment..." />
-                          <div className="mt-2 flex items-center justify-between gap-3 text-xs text-gray-500">
-                            <span>{editingCommentMessage.trim().length}/280</span>
-                            <span>{comment.updatedAt ? `Edited ${formatTime(comment.updatedAt)}` : `Posted ${formatTime(comment.createdAt)}`}</span>
+                          <textarea ref={editingCommentTextareaRef} value={editingCommentMessage} maxLength={280} rows={3} onChange={(event) => setEditingCommentMessage(event.target.value)} onInput={(event) => syncTextareaHeight(event.currentTarget)} className="w-full resize-none overflow-hidden rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder="Update comment..." />
+                          <div className="mt-2 text-xs text-gray-500">
+                            {comment.updatedAt ? `Edited ${formatTime(comment.updatedAt)}` : `Posted ${formatTime(comment.createdAt)}`}
                           </div>
-                          <div className="mt-4 flex flex-wrap items-center gap-3">
-                            <button type="button" onClick={() => handleCommentUpdate(comment.id)} disabled={isSavingCommentUpdate || !editingCommentMessage.trim()} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">{isSavingCommentUpdate ? "Saving..." : "Save"}</button>
-                            <button type="button" onClick={handleCommentEditCancel} disabled={isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+                          <div className="mt-4 flex flex-wrap items-center justify-between gap-3">
+                            <div className="flex flex-wrap items-center gap-3">
+                              <button type="button" onClick={() => handleCommentUpdate(comment.id)} disabled={isSavingCommentUpdate || !editingCommentMessage.trim()} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">{isSavingCommentUpdate ? "Saving..." : "Save"}</button>
+                              <button type="button" onClick={handleCommentEditCancel} disabled={isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
+                            </div>
+                            <span className="text-xs text-gray-500">{editingCommentMessage.trim().length}/280</span>
                           </div>
                         </div> : <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-300">{comment.message}</p>}
                       </div>;
