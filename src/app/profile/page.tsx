@@ -823,10 +823,26 @@ export default function ProfilePage() {
   const [editingCommentMessage, setEditingCommentMessage] = useState("");
   const [isCommentUpdating, setIsCommentUpdating] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+  const editingCommentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const syncTextareaHeight = (element: HTMLTextAreaElement | null) => {
+    if (!element) return;
+    element.style.height = "auto";
+    element.style.height = `${element.scrollHeight}px`;
+  };
 
   useEffect(() => {
     setHasHydrated(true);
   }, []);
+
+  useEffect(() => {
+    syncTextareaHeight(commentTextareaRef.current);
+  }, [commentInput]);
+
+  useEffect(() => {
+    syncTextareaHeight(editingCommentTextareaRef.current);
+  }, [editingCommentId, editingCommentMessage]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
@@ -2007,7 +2023,7 @@ export default function ProfilePage() {
                   <form onSubmit={handleCommentSubmit} className="mt-5">
                     <label className="block">
                       <span className="mb-2 block font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">New Comment</span>
-                      <textarea value={commentInput} maxLength={280} rows={4} onChange={(event) => setCommentInput(event.target.value)} className="w-full resize-y rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder={`Write something for ${primaryName}...`} />
+                      <textarea ref={commentTextareaRef} value={commentInput} maxLength={280} rows={4} onChange={(event) => setCommentInput(event.target.value)} onInput={(event) => syncTextareaHeight(event.currentTarget)} className="w-full resize-none overflow-hidden rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder={`Write something for ${primaryName}...`} />
                     </label>
                     <div className="mt-2 flex items-center justify-end gap-3 text-xs text-gray-500">
                       <span>{commentInput.trim().length}/280</span>
@@ -2064,7 +2080,7 @@ export default function ProfilePage() {
                           </div>
                         </div>
                         {isEditingComment ? <div className="mt-3">
-                          <textarea value={editingCommentMessage} maxLength={280} rows={4} onChange={(event) => setEditingCommentMessage(event.target.value)} className="w-full resize-y rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder="Update comment..." />
+                          <textarea ref={editingCommentTextareaRef} value={editingCommentMessage} maxLength={280} rows={4} onChange={(event) => setEditingCommentMessage(event.target.value)} onInput={(event) => syncTextareaHeight(event.currentTarget)} className="w-full resize-none overflow-hidden rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55" placeholder="Update comment..." />
                           <div className="mt-2 flex items-center justify-between gap-3 text-xs text-gray-500">
                             <span>{editingCommentMessage.trim().length}/280</span>
                             <span>{comment.updatedAt ? `Edited ${formatTime(comment.updatedAt)}` : `Posted ${formatTime(comment.createdAt)}`}</span>
