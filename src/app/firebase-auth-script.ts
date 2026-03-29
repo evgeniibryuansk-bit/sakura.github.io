@@ -2757,6 +2757,57 @@
 
       return snapshot;
     };
+    const adminSetProfileEmailVerification = async (profileId, nextIsVerified) => {
+      const { user } = await ensureRootActorSnapshot();
+
+      if (!Number.isInteger(profileId) || profileId <= 0) {
+        throw createFirebaseError("profile/invalid-id", "Profile id must be a positive number.");
+      }
+
+      const targetDoc = await findUserByProfileId(profileId);
+
+      if (!targetDoc) {
+        return null;
+      }
+
+      const isVerified = Boolean(nextIsVerified);
+
+      if (targetDoc.id === user.uid && !isVerified) {
+        throw createFirebaseError(
+          "verification/self-forbidden",
+          "You cannot revoke email verification on your own root account."
+        );
+      }
+
+      try {
+        await setDoc(
+          userRefFor(targetDoc.id),
+          {
+            emailVerified: isVerified,
+            verificationRequired: !isVerified,
+            verificationEmailSent: false,
+            updatedAt: new Date().toISOString(),
+          },
+          { merge: true }
+        );
+      } catch (error) {
+        if (!isPermissionDeniedError(error)) {
+          throw error;
+        }
+
+        throw createFirebaseError(
+          "verification/persist-failed",
+          "Email verification status could not be saved. Check Firestore rules for privileged users."
+        );
+      }
+
+      return refreshStoredUserSnapshot(targetDoc.id, {
+        ...targetDoc.data(),
+        emailVerified: isVerified,
+        verificationRequired: !isVerified,
+        verificationEmailSent: false,
+      });
+    };
 
     const updateProfileRoles = async (profileId, nextRoles) => {
       const user = auth.currentUser;
@@ -2984,6 +3035,7 @@
       adminUpdateProfileDisplayName,
       adminUpdateProfileLogin,
       adminSetProfileBan,
+      adminSetProfileEmailVerification,
       getProfileById,
       getProfileByAuthorName,
       getProfileComments,

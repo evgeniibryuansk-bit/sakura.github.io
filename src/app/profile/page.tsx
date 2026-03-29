@@ -54,6 +54,7 @@ type Bridge = {
   adminUpdateProfileDisplayName: (profileId: number, displayName: string) => Promise<UserProfile | null>;
   adminUpdateProfileLogin: (profileId: number, login: string) => Promise<UserProfile | null>;
   adminSetProfileBan: (profileId: number, isBanned: boolean) => Promise<UserProfile | null>;
+  adminSetProfileEmailVerification: (profileId: number, isVerified: boolean) => Promise<UserProfile | null>;
   updateProfileRoles: (profileId: number, roles: string[]) => Promise<UserProfile | null>;
   updateAvatar: (file: File) => Promise<UserProfile | null>;
   deleteAvatar: () => Promise<UserProfile | null>;
@@ -131,6 +132,10 @@ const getProfileActionErrorMessage = (error: unknown, fallback: string) => {
 
   if (code === "ban/self-forbidden") {
     return "You cannot ban your own account.";
+  }
+
+  if (code === "verification/self-forbidden") {
+    return "You cannot revoke email verification on your own root account.";
   }
 
   if (code === "auth/account-banned") {
@@ -802,6 +807,9 @@ export default function ProfilePage() {
   const [isBanSaving, setIsBanSaving] = useState(false);
   const [banError, setBanError] = useState<string | null>(null);
   const [banSuccess, setBanSuccess] = useState<string | null>(null);
+  const [isAdminVerificationSaving, setIsAdminVerificationSaving] = useState(false);
+  const [adminVerificationError, setAdminVerificationError] = useState<string | null>(null);
+  const [adminVerificationSuccess, setAdminVerificationSuccess] = useState<string | null>(null);
   const [comments, setComments] = useState<ProfileComment[]>([]);
   const [commentAuthorProfiles, setCommentAuthorProfiles] = useState<Record<number, UserProfile>>({});
   const [commentAuthorProfilesByCommentId, setCommentAuthorProfilesByCommentId] = useState<Record<string, UserProfile>>({});
@@ -997,6 +1005,12 @@ export default function ProfilePage() {
   const canManageRoleAssignments = Boolean(visibleCurrentUser && canManageRoles(visibleCurrentUser.roles));
   const canOpenAdminPanel = Boolean(canManageRoleAssignments && activeProfile?.profileId);
   const isTargetBanned = activeProfile?.isBanned === true;
+  const isTargetVerificationLocked = Boolean(
+    activeProfile?.email &&
+      activeProfile.emailVerified === false &&
+      activeProfile.verificationRequired !== false
+  );
+  const isTargetVerified = Boolean(activeProfile?.email && !isTargetVerificationLocked);
   const isAdminSelfTarget = Boolean(canOpenAdminPanel && isOwner);
   const shouldShowPendingState =
     !authError &&
@@ -1164,6 +1178,8 @@ export default function ProfilePage() {
       setRolesSuccess(null);
       setVerificationError(null);
       setVerificationSuccess(null);
+      setAdminVerificationError(null);
+      setAdminVerificationSuccess(null);
       setComments([]);
       setCommentAuthorProfiles({});
       setCommentAuthorProfilesByCommentId({});
@@ -1186,6 +1202,8 @@ export default function ProfilePage() {
     setRolesSuccess(null);
     setVerificationError(null);
     setVerificationSuccess(null);
+    setAdminVerificationError(null);
+    setAdminVerificationSuccess(null);
     setBanError(null);
     setBanSuccess(null);
     setDisplayNameInput(activeProfile.displayName ?? activeProfile.login ?? "");
@@ -1696,6 +1714,37 @@ export default function ProfilePage() {
       setIsBanSaving(false);
     }
   };
+  const handleAdminVerificationToggle = async () => {
+    const bridge = getWindowState().sakuraFirebaseAuth;
+
+    if (!bridge || !canOpenAdminPanel || !activeProfile?.profileId) {
+      return;
+    }
+
+    setAdminVerificationError(null);
+    setAdminVerificationSuccess(null);
+    setIsAdminVerificationSaving(true);
+
+    try {
+      const snapshot = await bridge.adminSetProfileEmailVerification(
+        activeProfile.profileId,
+        isTargetVerificationLocked
+      );
+
+      applyUpdatedProfileSnapshot(snapshot);
+      setAdminVerificationSuccess(
+        isTargetVerificationLocked ? "Email marked as verified." : "Email verification revoked."
+      );
+    } catch (error) {
+      setAdminVerificationError(
+        error instanceof Error
+          ? error.message
+          : "Could not update email verification status."
+      );
+    } finally {
+      setIsAdminVerificationSaving(false);
+    }
+  };
 
   const handleCommentSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -2204,6 +2253,70 @@ export default function ProfilePage() {
                       ) : null}
                       {banError ? <p className="mt-3 text-xs leading-relaxed text-[#ff9aa9]">{banError}</p> : null}
                       {banSuccess ? <p className="mt-3 text-xs leading-relaxed text-[#8ce5b2]">{banSuccess}</p> : null}
+                    </section>
+
+                    <section className="rounded-[24px] border border-[#1d1d1d] bg-[#0d0d0d] p-5">
+                      <div className="flex items-center justify-between gap-3">
+                        <div>
+                          <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">Email Verification</p>
+                          <p className="mt-2 text-sm font-semibold text-white">
+                            {!activeProfile.email
+                              ? "No email attached"
+                              : isTargetVerificationLocked
+                                ? "Verification required"
+                                : "Email verified"}
+                          </p>
+                          {activeProfile.email ? (
+                            <p className="mt-1 text-xs text-gray-500">{activeProfile.email}</p>
+                          ) : (
+                            <p className="mt-1 text-xs text-gray-500">This account does not have a stored email.</p>
+                          )}
+                        </div>
+                        <span
+                          className={`inline-flex shrink-0 rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${
+                            !activeProfile.email
+                              ? "border-[#2b2b2b] bg-[#101010] text-gray-400"
+                              : isTargetVerificationLocked
+                                ? "border-[#ffb7c5]/35 bg-[#140d11] text-[#ffb7c5]"
+                                : "border-[#1f3b2f] bg-[#0d1713] text-[#8ce5b2]"
+                          }`}
+                        >
+                          {!activeProfile.email
+                            ? "Unavailable"
+                            : isTargetVerificationLocked
+                              ? "Locked"
+                              : "Verified"}
+                        </span>
+                      </div>
+                      <div className="mt-4 flex flex-wrap items-center gap-3">
+                        <button
+                          type="button"
+                          onClick={handleAdminVerificationToggle}
+                          disabled={
+                            isAdminVerificationSaving ||
+                            !activeProfile.email ||
+                            (isAdminSelfTarget && isTargetVerified)
+                          }
+                          className={`inline-flex items-center justify-center rounded-full border px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                            isTargetVerificationLocked
+                              ? "border-[#1f3b2f] bg-[#0d1713] text-[#8ce5b2] hover:border-[#8ce5b2]/50 hover:text-white"
+                              : "border-[#ffb7c5]/35 bg-[#ffb7c5] text-black hover:bg-[#ffc8d3]"
+                          }`}
+                        >
+                          {isAdminVerificationSaving
+                            ? "Saving..."
+                            : isTargetVerificationLocked
+                              ? "Mark Verified"
+                              : "Revoke Verification"}
+                        </button>
+                      </div>
+                      {isAdminSelfTarget && isTargetVerified ? (
+                        <p className="mt-3 text-xs leading-relaxed text-gray-500">
+                          Self-revoke is blocked to prevent losing access to your own root account.
+                        </p>
+                      ) : null}
+                      {adminVerificationError ? <p className="mt-3 text-xs leading-relaxed text-[#ff9aa9]">{adminVerificationError}</p> : null}
+                      {adminVerificationSuccess ? <p className="mt-3 text-xs leading-relaxed text-[#8ce5b2]">{adminVerificationSuccess}</p> : null}
                     </section>
 
                     <section className="rounded-[24px] border border-[#1d1d1d] bg-[#0d0d0d] p-5">
