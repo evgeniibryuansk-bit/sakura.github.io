@@ -160,6 +160,7 @@ const requestFirebaseAuthBoot = () => {
 const AUTH_READY_EVENT = "sakura-auth-ready";
 const AUTH_ERROR_EVENT = "sakura-auth-error";
 const USER_UPDATE_EVENT = "sakura-user-update";
+const OPEN_AUTH_MODAL_EVENT = "sakura-open-auth-modal";
 const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
 
 const ROLE_CHIP_ORDER = new Map([
@@ -618,6 +619,18 @@ function HeaderAuth() {
       setCurrentUser(window.sakuraCurrentUserSnapshot ?? null);
     };
 
+    const handleOpenAuthModal = (event: Event) => {
+      const nextMode =
+        event instanceof CustomEvent && event.detail?.mode === "login"
+          ? "login"
+          : "register";
+
+      requestFirebaseAuthBoot();
+      setMode(nextMode);
+      setIsModalOpen(true);
+      setSubmitError(null);
+    };
+
     const handleError = () => {
       setAuthLoadError(
         window.sakuraFirebaseAuthError ??
@@ -641,12 +654,14 @@ function HeaderAuth() {
     window.addEventListener(AUTH_READY_EVENT, handleReady);
     window.addEventListener(AUTH_ERROR_EVENT, handleError);
     window.addEventListener(USER_UPDATE_EVENT, handleUserUpdate);
+    window.addEventListener(OPEN_AUTH_MODAL_EVENT, handleOpenAuthModal);
 
     return () => {
       window.clearTimeout(timeoutId);
       window.removeEventListener(AUTH_READY_EVENT, handleReady);
       window.removeEventListener(AUTH_ERROR_EVENT, handleError);
       window.removeEventListener(USER_UPDATE_EVENT, handleUserUpdate);
+      window.removeEventListener(OPEN_AUTH_MODAL_EVENT, handleOpenAuthModal);
       unsubscribe();
     };
   }, []);
@@ -1191,6 +1206,26 @@ function HeaderAuth() {
 }
 
 export default function Home() {
+  const handleHeroTrialClick = () => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    const snapshot = window.sakuraCurrentUserSnapshot;
+
+    if (snapshot && !snapshot.isAnonymous) {
+      window.location.assign(profileHref(snapshot.profileId));
+      return;
+    }
+
+    requestFirebaseAuthBoot();
+    window.dispatchEvent(
+      new CustomEvent(OPEN_AUTH_MODAL_EVENT, {
+        detail: { mode: "register" satisfies AuthMode },
+      })
+    );
+  };
+
   return (
     <LazyMotion features={domAnimation}>
       <main className="relative isolate min-h-screen overflow-hidden bg-[#0a0a0a] text-[#ededed] font-sans selection:bg-white selection:text-black">
@@ -1228,23 +1263,17 @@ export default function Home() {
             Feel The <br /> <span className="italic text-gray-500">Sakura Power</span>
           </m.h1>
 
-          <p className="mb-10 max-w-xl text-center text-lg leading-relaxed text-gray-400">
-            Приватный чит для Dota 2.
-            <br />
-            Тестовый период на 7 дней.
-          </p>
-
-          <div className="flex gap-4">
-            <a
-              href="#download"
-              onClick={(event) => {
-                event.preventDefault();
-                scrollToSection("download");
-              }}
+          <div className="mb-10 flex max-w-xl flex-col items-center gap-5 text-center">
+            <p className="text-lg leading-relaxed text-gray-400">
+              Приватный чит для Dota 2.
+            </p>
+            <button
+              type="button"
+              onClick={handleHeroTrialClick}
               className="inline-flex items-center justify-center bg-[#ffb7c5] px-10 py-4 text-sm font-bold uppercase text-black shadow-[0_0_30px_rgba(255,183,197,0.2)] transition-all hover:bg-[#ffcdd7] active:scale-95"
             >
-              Download Latest
-            </a>
+              Тестовый период на 7 дней
+            </button>
           </div>
         </section>
 
