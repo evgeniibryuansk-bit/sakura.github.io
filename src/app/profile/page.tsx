@@ -128,8 +128,24 @@ const getProfileActionErrorMessage = (error: unknown, fallback: string) => {
     return "This account has been banned by an administrator.";
   }
 
+  if (code === "avatar/action-timeout") {
+    return "Avatar action took too long. Try a smaller file.";
+  }
+
   return error instanceof Error ? error.message : fallback;
 };
+const AVATAR_ACTION_TIMEOUT_MS = 12000;
+const withAvatarActionTimeout = <T,>(promise: Promise<T>) =>
+  Promise.race<T>([
+    promise,
+    new Promise<T>((_, reject) => {
+      window.setTimeout(() => {
+        const error = new Error("Avatar action took too long. Try a smaller file.");
+        (error as Error & { code?: string }).code = "avatar/action-timeout";
+        reject(error);
+      }, AVATAR_ACTION_TIMEOUT_MS);
+    }),
+  ]);
 const parseProfileId = (path: string | null) => {
   if (!path || !path.startsWith(`${repoBasePath}/profile/`)) return null;
   const raw = path.slice(`${repoBasePath}/profile/`.length);
@@ -1080,9 +1096,11 @@ export default function ProfilePage() {
       let snapshot: UserProfile | null = null;
 
       if (isOwner) {
-        snapshot = await bridge.updateAvatar(file);
+        snapshot = await withAvatarActionTimeout(bridge.updateAvatar(file));
       } else if (canOpenAdminPanel && activeProfile?.profileId) {
-        snapshot = await bridge.adminUpdateProfileAvatar(activeProfile.profileId, file);
+        snapshot = await withAvatarActionTimeout(
+          bridge.adminUpdateProfileAvatar(activeProfile.profileId, file)
+        );
       }
 
       applyUpdatedProfileSnapshot(snapshot);
@@ -1104,9 +1122,11 @@ export default function ProfilePage() {
       let snapshot: UserProfile | null = null;
 
       if (isOwner) {
-        snapshot = await bridge.deleteAvatar();
+        snapshot = await withAvatarActionTimeout(bridge.deleteAvatar());
       } else if (canOpenAdminPanel && activeProfile?.profileId) {
-        snapshot = await bridge.adminDeleteProfileAvatar(activeProfile.profileId);
+        snapshot = await withAvatarActionTimeout(
+          bridge.adminDeleteProfileAvatar(activeProfile.profileId)
+        );
       }
 
       applyUpdatedProfileSnapshot(snapshot);

@@ -2166,10 +2166,12 @@
         await resolveUserSnapshot(user);
       }
 
-      try {
-        await deleteAvatarFromStorage(user.uid);
-      } catch (error) {
-        console.error("Failed to delete avatar file from storage:", error);
+      if (STORAGE_AVATAR_UPLOADS_ENABLED) {
+        try {
+          await deleteAvatarFromStorage(user.uid);
+        } catch (error) {
+          console.error("Failed to delete avatar file from storage:", error);
+        }
       }
 
       try {
@@ -2399,10 +2401,12 @@
         return null;
       }
 
-      try {
-        await deleteAvatarFromStorage(targetDoc.id);
-      } catch (error) {
-        console.error("Failed to delete avatar file from storage:", error);
+      if (STORAGE_AVATAR_UPLOADS_ENABLED) {
+        try {
+          await deleteAvatarFromStorage(targetDoc.id);
+        } catch (error) {
+          console.error("Failed to delete avatar file from storage:", error);
+        }
       }
 
       try {
