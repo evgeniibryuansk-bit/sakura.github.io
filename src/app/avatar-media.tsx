@@ -39,11 +39,19 @@ export const isVideoAvatarSource = (value: string | null | undefined) => {
 };
 
 const ANIMATED_DATA_URL_PATTERN = /^data:(image\/gif|image\/webp|video\/(?:mp4|webm))/i;
+const ANIMATED_IMAGE_DATA_URL_PATTERN = /^data:(image\/gif|image\/webp)/i;
 
 const isAnimatedAvatarSource = (value: string | null | undefined) =>
   typeof value === "string" &&
   (
     ANIMATED_DATA_URL_PATTERN.test(value.trim()) ||
+    /\.((gif)|(webp))(?:$|[?#])/i.test(value.trim())
+  );
+
+const isAnimatedImageAvatarSource = (value: string | null | undefined) =>
+  typeof value === "string" &&
+  (
+    ANIMATED_IMAGE_DATA_URL_PATTERN.test(value.trim()) ||
     /\.((gif)|(webp))(?:$|[?#])/i.test(value.trim())
   );
 
@@ -144,6 +152,26 @@ export function AvatarMedia({
         disablePictureInPicture
         className={className}
         style={style}
+      />
+    );
+  }
+
+  if (isAnimatedImageAvatarSource(resolvedSrc)) {
+    return (
+      <span
+        key={`${renderKey}:${resolvedSrc}`}
+        role="img"
+        aria-label={alt}
+        title={alt}
+        className={className}
+        style={{
+          ...style,
+          display: "block",
+          backgroundImage: `url("${resolvedSrc}")`,
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
+        }}
       />
     );
   }

@@ -1051,6 +1051,21 @@
       const downloadURL = await getDownloadURL(avatarRef);
       return \`\${downloadURL}\${downloadURL.includes("?") ? "&" : "?"}v=\${Date.now()}\`;
     };
+    const resolvePersistedAvatarUrl = async (uid, file) => {
+      if (STORAGE_AVATAR_CONTENT_TYPES.has(file.type)) {
+        try {
+          const storagePhotoURL = await uploadAvatarToStorage(uid, file);
+
+          if (storagePhotoURL) {
+            return storagePhotoURL;
+          }
+        } catch (error) {
+          console.error("Failed to upload avatar to storage, falling back to inline data URL:", error);
+        }
+      }
+
+      return createInlineAvatarDataUrl(file);
+    };
     const deleteAvatarFromStorage = async (uid) => {
       const extensions = ["gif", "webp", "mp4", "webm"];
 
@@ -2055,9 +2070,7 @@
         );
       }
 
-      const photoURL = STORAGE_AVATAR_CONTENT_TYPES.has(file.type)
-        ? await uploadAvatarToStorage(user.uid, file)
-        : await createInlineAvatarDataUrl(file);
+      const photoURL = await resolvePersistedAvatarUrl(user.uid, file);
       const userRef = userRefFor(user.uid);
       const existingSnapshot = await getDoc(userRef);
       const existingData = existingSnapshot.exists() ? existingSnapshot.data() : {};
@@ -2321,9 +2334,7 @@
         return null;
       }
 
-      const photoURL = STORAGE_AVATAR_CONTENT_TYPES.has(file.type)
-        ? await uploadAvatarToStorage(targetDoc.id, file)
-        : await createInlineAvatarDataUrl(file);
+      const photoURL = await resolvePersistedAvatarUrl(targetDoc.id, file);
 
       try {
         await setDoc(
