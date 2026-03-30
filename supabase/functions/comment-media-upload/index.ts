@@ -96,7 +96,10 @@ Deno.serve(async (request) => {
 
     const idToken = authHeader.slice("Bearer ".length).trim();
     const firebaseProjectId = getRequiredEnv("FIREBASE_PROJECT_ID");
-    const bucket = Deno.env.get("SUPABASE_STORAGE_BUCKET")?.trim() || "comment-media";
+    const bucket =
+      Deno.env.get("COMMENT_MEDIA_BUCKET")?.trim()
+      || Deno.env.get("SUPABASE_STORAGE_BUCKET")?.trim()
+      || "comment-media";
     const supabaseUrl = getRequiredEnv("SUPABASE_URL");
     const serviceRoleKey = getRequiredEnv("SUPABASE_SERVICE_ROLE_KEY");
     const requester = await verifyFirebaseIdToken(idToken, firebaseProjectId);

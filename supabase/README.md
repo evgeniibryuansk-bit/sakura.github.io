@@ -23,7 +23,7 @@ Also set the global project storage limit to `50 MB` in Storage settings.
 In Supabase Dashboard -> Edge Functions -> Secrets, add:
 
 - `FIREBASE_PROJECT_ID=sakura-bfa74`
-- `SUPABASE_STORAGE_BUCKET=comment-media`
+- `COMMENT_MEDIA_BUCKET=comment-media`
 - `SUPABASE_SERVICE_ROLE_KEY=<your service role key>`
 
 `SUPABASE_URL` is available to hosted Edge Functions by default.
