@@ -7,6 +7,7 @@ import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type
 import { AvatarMedia, AVATAR_FILE_ACCEPT } from "../avatar-media";
 import { HeaderSocialLinks } from "../header-social-links";
 import { SiteOnlineBadge } from "../site-online-badge";
+import { uploadSupabaseCommentMediaTest } from "@/lib/supabase-storage";
 
 type UserProfile = {
   uid: string;
@@ -41,6 +42,14 @@ type ProfileComment = {
   mediaType?: string | null;
   createdAt: string | null;
   updatedAt?: string | null;
+};
+
+type SupabaseUploadTestResult = {
+  bucket: string;
+  path: string;
+  publicUrl: string;
+  contentType: string;
+  size: number;
 };
 
 type Bridge = {
@@ -876,6 +885,8 @@ export default function ProfilePage() {
   const [commentMediaPreviewUrl, setCommentMediaPreviewUrl] = useState<string | null>(null);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [commentSuccess, setCommentSuccess] = useState<string | null>(null);
+  const [isSupabaseUploadTesting, setIsSupabaseUploadTesting] = useState(false);
+  const [supabaseUploadTestResult, setSupabaseUploadTestResult] = useState<SupabaseUploadTestResult | null>(null);
   const [isCommentSubmitting, setIsCommentSubmitting] = useState(false);
   const [editingCommentId, setEditingCommentId] = useState<string | null>(null);
   const [editingCommentMessage, setEditingCommentMessage] = useState("");
@@ -1982,13 +1993,39 @@ export default function ProfilePage() {
     const nextFile = event.target.files?.[0] ?? null;
     setCommentError(null);
     setCommentSuccess(null);
+    setSupabaseUploadTestResult(null);
     setCommentMediaFile(nextFile);
   };
 
   const clearCommentMediaSelection = () => {
     setCommentMediaFile(null);
+    setSupabaseUploadTestResult(null);
     if (commentMediaInputRef.current) {
       commentMediaInputRef.current.value = "";
+    }
+  };
+
+  const handleSupabaseUploadTest = async () => {
+    if (!commentMediaFile) {
+      setCommentError("Choose a media file before testing upload.");
+      return;
+    }
+
+    setCommentError(null);
+    setCommentSuccess(null);
+    setSupabaseUploadTestResult(null);
+    setIsSupabaseUploadTesting(true);
+
+    try {
+      const result = await uploadSupabaseCommentMediaTest(commentMediaFile);
+      setSupabaseUploadTestResult(result);
+      setCommentSuccess("Supabase test upload completed.");
+    } catch (error) {
+      setCommentError(
+        error instanceof Error ? error.message : "Could not upload the selected file to Supabase."
+      );
+    } finally {
+      setIsSupabaseUploadTesting(false);
     }
   };
 
@@ -2285,9 +2322,19 @@ export default function ProfilePage() {
                         <button type="button" onClick={() => commentMediaInputRef.current?.click()} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white">
                           Media
                         </button>
+                        <button type="button" onClick={handleSupabaseUploadTest} disabled={!commentMediaFile || isSupabaseUploadTesting} className="inline-flex items-center justify-center rounded-full border border-[#2c3152] bg-[#0f1220] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#9ec1ff] transition hover:border-[#9ec1ff]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">
+                          {isSupabaseUploadTesting ? "Testing..." : "Test Upload"}
+                        </button>
                       </div>
                       <span className="text-xs text-gray-500">{commentInput.trim().length}/280</span>
                     </div>
+                    {supabaseUploadTestResult ? <div className="mt-3 rounded-[20px] border border-[#1d2c41] bg-[#09111c] px-4 py-3">
+                      <p className="font-mono text-[10px] uppercase tracking-[0.26em] text-[#9ec1ff]">Supabase Upload Test</p>
+                      <p className="mt-2 break-all text-xs text-gray-300">Path: {supabaseUploadTestResult.path}</p>
+                      <a href={supabaseUploadTestResult.publicUrl} target="_blank" rel="noreferrer" className="mt-2 inline-flex text-xs text-[#9ec1ff] transition hover:text-white">
+                        Open uploaded file
+                      </a>
+                    </div> : null}
                     {commentError ? <p className="mt-3 text-xs leading-relaxed text-[#ff9aa9]">{commentError}</p> : null}
                     {commentSuccess ? <p className="mt-3 text-xs leading-relaxed text-[#8ce5b2]">{commentSuccess}</p> : null}
                   </form>
