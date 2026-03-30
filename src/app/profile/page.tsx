@@ -2470,11 +2470,13 @@ export default function ProfilePage() {
       </div>
       {activeProfile ? (
         <>
-          <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
+          <div className="fixed top-6 right-6 z-40">
             <SiteOnlineBadge
               count={siteOnlineCount}
-              className="rounded-full border border-[#ffb7c5]/35 bg-[#140d11] px-4 py-3 shadow-[0_0_30px_rgba(255,183,197,0.14)]"
+              className="rounded-full border border-[#ffb7c5]/35 bg-[#140d11] px-4 py-2 shadow-[0_0_30px_rgba(255,183,197,0.14)]"
             />
+          </div>
+          <div className="fixed bottom-6 right-6 z-40 flex flex-col items-end gap-3">
             {canOpenAdminPanel ? (
               <button
                 type="button"

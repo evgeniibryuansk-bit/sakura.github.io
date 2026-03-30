@@ -11,7 +11,7 @@ export function SiteOnlineBadge({ count, className = "" }: SiteOnlineBadgeProps)
 
   return (
     <div
-      className={`inline-flex items-center gap-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffe2ea] ${className}`.trim()}
+      className={`inline-flex items-center gap-2 whitespace-nowrap text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffe2ea] ${className}`.trim()}
     >
       <span
         aria-hidden="true"
