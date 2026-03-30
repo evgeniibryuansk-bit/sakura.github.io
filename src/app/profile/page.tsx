@@ -157,7 +157,7 @@ const COMMENT_MENTION_TOKEN_CHARACTER_PATTERN = /[A-Za-z\u0400-\u04FF0-9._-]/;
 const repoBasePath = "/sakura.github.io";
 const PROFILE_THEME_SONG_BY_PROFILE_ID = new Map<number, string>([
   [1, `${repoBasePath}/music/where-is-my-mind.mp3`],
-  [2, `${repoBasePath}/music/face-forever-young.mp3`],
+  [2, `${repoBasePath}/music/Face-forever-young.mp3`],
   [3, `${repoBasePath}/music/cyberpunk.mp3`],
   [4, `${repoBasePath}/music/where-is-my-mind.mp3`],
   [5, `${repoBasePath}/music/where-is-my-mind.mp3`],
