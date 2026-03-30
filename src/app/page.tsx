@@ -8,6 +8,7 @@ import { useEffect, useRef, useState, type CSSProperties } from "react";
 import { AvatarMedia } from "./avatar-media";
 import { HeaderSocialLinks } from "./header-social-links";
 import { SiteOnlineBadge } from "./site-online-badge";
+import { readCachedAuthSnapshot } from "@/lib/auth-snapshot-cache";
 
 type ShowcaseSlide = {
   id: string;
@@ -654,7 +655,9 @@ function HeaderAuth() {
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [authReady, setAuthReady] = useState(false);
   const [authLoadError, setAuthLoadError] = useState<string | null>(null);
-  const [currentUser, setCurrentUser] = useState<AuthUserSnapshot | null>(null);
+  const [currentUser, setCurrentUser] = useState<AuthUserSnapshot | null>(() =>
+    readCachedAuthSnapshot<AuthUserSnapshot>()
+  );
   const [identifier, setIdentifier] = useState("");
   const [profileName, setProfileName] = useState("");
   const [loginName, setLoginName] = useState("");

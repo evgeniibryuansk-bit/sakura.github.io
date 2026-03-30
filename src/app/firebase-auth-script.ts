@@ -110,6 +110,7 @@
   const AUTH_STATE_SETTLED_EVENT = "sakura-auth-state-settled";
   const PRESENCE_DIRTY_EVENT = "sakura-presence-dirty";
   const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
+  const AUTH_SNAPSHOT_CACHE_STORAGE_KEY = "sakura-auth-snapshot-v1";
   const AVATAR_CONTENT_TYPES = new Set(["image/jpeg", "image/png", "image/webp", "image/gif", "video/mp4", "video/webm"]);
   const LOGIN_PATTERN = /^[A-Za-z\u0400-\u04FF0-9._-]+$/;
 
@@ -136,6 +137,45 @@
         ? details.bannedAt
         : null
       : fallbackBannedAt ?? null;
+
+  const readCachedAuthSnapshot = () => {
+    try {
+      const rawSnapshot = window.localStorage?.getItem(AUTH_SNAPSHOT_CACHE_STORAGE_KEY);
+
+      if (!rawSnapshot) {
+        return null;
+      }
+
+      const parsedSnapshot = JSON.parse(rawSnapshot);
+
+      if (!parsedSnapshot || typeof parsedSnapshot.uid !== "string") {
+        window.localStorage?.removeItem(AUTH_SNAPSHOT_CACHE_STORAGE_KEY);
+        return null;
+      }
+
+      return parsedSnapshot;
+    } catch (error) {
+      return null;
+    }
+  };
+
+  const persistCachedAuthSnapshot = (snapshot) => {
+    try {
+      if (snapshot && !snapshot.isAnonymous && typeof snapshot.uid === "string") {
+        window.localStorage?.setItem(
+          AUTH_SNAPSHOT_CACHE_STORAGE_KEY,
+          JSON.stringify(snapshot)
+        );
+        return;
+      }
+
+      window.localStorage?.removeItem(AUTH_SNAPSHOT_CACHE_STORAGE_KEY);
+    } catch (error) {}
+  };
+
+  if (!window.sakuraCurrentUserSnapshot) {
+    window.sakuraCurrentUserSnapshot = readCachedAuthSnapshot();
+  }
 
   const withTimeout = (promise, timeoutMs, createTimeoutError) =>
     new Promise((resolve, reject) => {
@@ -1357,6 +1397,7 @@
 
     const publishUserSnapshot = (snapshot) => {
       window.sakuraCurrentUserSnapshot = snapshot;
+      persistCachedAuthSnapshot(snapshot);
       try {
         if (typeof snapshot?.profileId === "number" && snapshot.profileId > 0) {
           window.sessionStorage.setItem(

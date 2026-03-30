@@ -15,6 +15,7 @@ import {
   type SupabaseCommentMediaUploadResult,
 } from "@/lib/supabase-storage";
 import { isSupabaseConfigured } from "@/lib/supabase";
+import { readCachedAuthSnapshot } from "@/lib/auth-snapshot-cache";
 
 type UserProfile = {
   uid: string;
@@ -995,7 +996,11 @@ const getInitialRequestedProfileId = () => {
   return parseProfileId(window.location.pathname) ?? parseProfileId(fallback);
 };
 const getInitialCurrentUser = () =>
-  typeof window === "undefined" ? null : getWindowState().sakuraCurrentUserSnapshot ?? null;
+  typeof window === "undefined"
+    ? null
+    : getWindowState().sakuraCurrentUserSnapshot ??
+      readCachedAuthSnapshot<UserProfile>() ??
+      null;
 const getInitialProfile = (currentUser: UserProfile | null, requestedProfileId: number | null) =>
   currentUser && !currentUser.isAnonymous && (requestedProfileId === null || (currentUser.profileId ?? null) === requestedProfileId)
     ? currentUser
