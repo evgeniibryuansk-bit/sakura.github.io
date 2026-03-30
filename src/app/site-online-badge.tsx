@@ -1,6 +1,5 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import { AvatarMedia } from "./avatar-media";
 
@@ -222,9 +221,13 @@ export function SiteOnlineBadge({
 
                   if (user.profileId && profileHrefBuilder) {
                     return (
-                      <Link key={user.uid ?? `profile-${user.profileId}`} href={profileHrefBuilder(user.profileId)}>
+                      <a
+                        key={user.uid ?? `profile-${user.profileId}`}
+                        href={profileHrefBuilder(user.profileId)}
+                        onClick={() => setIsOpen(false)}
+                      >
                         {content}
-                      </Link>
+                      </a>
                     );
                   }
 
