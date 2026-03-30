@@ -1626,7 +1626,7 @@ export default function ProfilePage() {
         <p className="font-mono text-[10px] uppercase tracking-[0.24em] text-gray-500">
           Attached Accounts
         </p>
-        <div className="mt-3 flex flex-wrap gap-2">
+        <div className="mt-3 flex flex-col gap-2">
           {mentionProfiles.map((profile) => {
             const profileRole = resolveMentionProfileRole(profile);
             const profileBadgeRole = deriveVisibleProfileRoles(profile)[0] ?? "user";
@@ -1636,11 +1636,11 @@ export default function ProfilePage() {
             return (
               <div
                 key={`${mode}:${profile.uid}`}
-                className="group relative inline-flex min-w-0 max-w-full"
+                className="group relative w-full min-w-0"
               >
                 <a
                   href={typeof profile.profileId === "number" ? profilePath(profile.profileId) : "#"}
-                  className="inline-flex min-w-0 max-w-full items-center gap-3 rounded-full border border-[#2a2022] bg-[#120d11] px-3 py-2 pr-10 transition hover:border-[#ffb7c5]/40 hover:bg-[#171014]"
+                  className="flex w-full min-w-0 items-center gap-3 rounded-[18px] border border-[#2a2022] bg-[#120d11] px-4 py-3 pr-16 transition hover:border-[#ffb7c5]/40 hover:bg-[#171014]"
                 >
                   {profile.photoURL ? (
                     <AvatarMedia
@@ -1675,7 +1675,7 @@ export default function ProfilePage() {
                 <button
                   type="button"
                   onClick={() => removeMentionAttachment(mode, profile)}
-                  className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] text-[12px] font-bold text-[#ffb7c5] opacity-0 transition hover:border-[#ffb7c5]/40 hover:text-white group-hover:opacity-100"
+                  className="absolute right-3 top-1/2 inline-flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] text-[16px] font-bold text-[#ffb7c5] opacity-0 transition hover:border-[#ffb7c5]/40 hover:text-white group-hover:opacity-100"
                   aria-label={`Remove ${profilePreviewName} mention`}
                 >
                   ×
@@ -3346,10 +3346,6 @@ export default function ProfilePage() {
                     {renderMentionSuggestions("new")}
                     {renderComposerMentionAttachments("new", commentInput, commentDraftMentionProfilesByKey)}
                     <input ref={commentMediaInputRef} type="file" accept={COMMENT_MEDIA_FILE_ACCEPT} onChange={handleCommentMediaChange} className="hidden" />
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
-                      {commentMediaFile ? <span className="min-w-0 truncate text-xs text-gray-400">{commentMediaFile.name}</span> : null}
-                      {commentMediaFile ? <button type="button" onClick={clearCommentMediaSelection} className="inline-flex items-center justify-center rounded-full border border-[#2a2a2a] bg-[#101010] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-300 transition hover:border-[#4a4a4a] hover:text-white">Remove</button> : null}
-                    </div>
                     {commentMediaPreviewUrl ? <div className="mt-3 overflow-hidden rounded-[22px] border border-[#232323] bg-[#050505]">
                       <CommentMediaFrame src={commentMediaPreviewUrl} mediaType={commentMediaFile?.type ?? null} alt="Selected comment media preview" className="block max-h-[320px] w-full object-contain" />
                     </div> : null}
@@ -3359,6 +3355,7 @@ export default function ProfilePage() {
                         <button type="button" onClick={() => commentMediaInputRef.current?.click()} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white">
                           Media
                         </button>
+                        {commentMediaFile ? <button type="button" onClick={clearCommentMediaSelection} className="inline-flex items-center justify-center rounded-full border border-[#2a2a2a] bg-[#101010] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-300 transition hover:border-[#4a4a4a] hover:text-white">Remove</button> : null}
                       </div>
                       <span className="text-xs text-gray-500">{commentInput.trim().length}/280</span>
                     </div>
@@ -3437,11 +3434,6 @@ export default function ProfilePage() {
                           {renderMentionSuggestions("edit")}
                           {renderComposerMentionAttachments("edit", editingCommentMessage, editingDraftMentionProfilesByKey)}
                           <input ref={editingCommentMediaInputRef} type="file" accept={COMMENT_MEDIA_FILE_ACCEPT} onChange={handleEditingCommentMediaChange} className="hidden" />
-                          <div className="mt-3 flex flex-wrap items-center gap-3">
-                            {editingCommentMediaFile ? <span className="min-w-0 truncate text-xs text-gray-400">{editingCommentMediaFile.name}</span> : null}
-                            {editingCommentMediaFile ? <button type="button" onClick={clearEditingCommentMediaSelection} className="inline-flex items-center justify-center rounded-full border border-[#2a2a2a] bg-[#101010] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-300 transition hover:border-[#4a4a4a] hover:text-white">Remove file</button> : null}
-                            {!editingCommentMediaFile && comment.mediaURL && !isEditingCommentMediaRemoved ? <button type="button" onClick={removeEditingCommentMedia} className="inline-flex items-center justify-center rounded-full border border-[#2a2a2a] bg-[#101010] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-gray-300 transition hover:border-[#4a4a4a] hover:text-white">Remove media</button> : null}
-                          </div>
                           {editingCommentMediaPreviewUrl ? <div className="mt-3 overflow-hidden rounded-[22px] border border-[#232323] bg-[#050505]">
                             <CommentMediaFrame src={editingCommentMediaPreviewUrl} mediaType={editingCommentMediaFile?.type ?? null} alt="Updated comment media preview" className="block max-h-[320px] w-full object-contain" />
                           </div> : (!isEditingCommentMediaRemoved && comment.mediaURL ? <div className="mt-3 overflow-hidden rounded-[22px] border border-[#232323] bg-[#050505]">
@@ -3451,6 +3443,8 @@ export default function ProfilePage() {
                             <div className="flex flex-wrap items-center gap-3">
                               <button type="button" onClick={() => handleCommentUpdate(comment.id)} disabled={isSavingCommentUpdate || (!editingCommentMessage.trim() && !editingCommentMediaFile && !(comment.mediaURL && !isEditingCommentMediaRemoved))} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">{isSavingCommentUpdate ? "Saving..." : "Save"}</button>
                               <button type="button" onClick={() => editingCommentMediaInputRef.current?.click()} disabled={isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Media</button>
+                              {editingCommentMediaFile ? <button type="button" onClick={clearEditingCommentMediaSelection} disabled={isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#2a2a2a] bg-[#101010] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-300 transition hover:border-[#4a4a4a] hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Remove</button> : null}
+                              {!editingCommentMediaFile && comment.mediaURL && !isEditingCommentMediaRemoved ? <button type="button" onClick={removeEditingCommentMedia} disabled={isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#2a2a2a] bg-[#101010] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-gray-300 transition hover:border-[#4a4a4a] hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Remove</button> : null}
                               <button type="button" onClick={handleCommentEditCancel} disabled={isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Cancel</button>
                             </div>
                             <span className="text-xs text-gray-500">{editingCommentMessage.trim().length}/280</span>
