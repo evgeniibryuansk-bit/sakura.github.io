@@ -99,7 +99,7 @@ const AUTH_STATE_SETTLED_EVENT = "sakura-auth-state-settled";
 const USER_UPDATE_EVENT = "sakura-user-update";
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
 const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
-const PROFILE_BUILD_MARKER = "role-colors-v47";
+const PROFILE_BUILD_MARKER = "role-colors-v48";
 const repoBasePath = "/sakura.github.io";
 const COMMENT_MEDIA_FILE_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif";
 const PRESENCE_ACTIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -2160,16 +2160,15 @@ export default function ProfilePage() {
                 {visibleCurrentUser?.profileId && !isOwner ? <a href={profilePath(visibleCurrentUser.profileId)} className="inline-flex items-center justify-center rounded-full border border-[#2b1b1e] bg-[#1a1012] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white">My Profile</a> : null}
                 {visibleCurrentUser ? <button type="button" onClick={handleLogout} disabled={isLoggingOut} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">{isLoggingOut ? "Logging out..." : "Logout"}</button> : null}
                 <div className="lg:hidden">
-                  <SiteOnlineBadge count={siteOnlineCount} profileHrefBuilder={profilePath} defaultVisible />
+                  <SiteOnlineBadge count={siteOnlineCount} profileHrefBuilder={profilePath} />
                 </div>
               </div>
             </nav>
 
-            <div className="fixed right-8 top-[42px] z-40 hidden lg:flex">
+            <div className="fixed right-8 top-[52px] z-40 hidden lg:flex">
               <SiteOnlineBadge
                 count={siteOnlineCount}
                 profileHrefBuilder={profilePath}
-                defaultVisible
               />
             </div>
           </div>
