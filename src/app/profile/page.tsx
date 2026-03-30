@@ -1449,10 +1449,14 @@ export default function ProfilePage() {
     const mentionPreviewAlt = mentionPreviewName || fallbackLabel;
     const previewAlignmentClassName =
       align === "start" ? "left-0 translate-x-0" : "left-1/2 -translate-x-1/2";
+    const previewArrowClassName =
+      align === "start"
+        ? "left-[28px] -translate-x-1/2"
+        : "left-1/2 -translate-x-1/2";
 
     return (
       <span className={`absolute ${previewAlignmentClassName} top-full z-30 mt-3 w-[260px] translate-y-2 rounded-[22px] border border-[#2a2023] bg-[#0c0b0d] px-4 py-4 opacity-0 shadow-[0_18px_50px_rgba(0,0,0,0.46),0_0_35px_rgba(255,183,197,0.08)] transition duration-150 ease-out invisible group-hover/comment-profile:visible group-hover/comment-profile:translate-y-0 group-hover/comment-profile:opacity-100 group-focus-within/comment-profile:visible group-focus-within/comment-profile:translate-y-0 group-focus-within/comment-profile:opacity-100`}>
-        <span className="absolute left-1/2 top-0 h-3 w-3 -translate-x-1/2 -translate-y-1/2 rotate-45 border-l border-t border-[#2a2023] bg-[#0c0b0d]" />
+        <span className={`absolute ${previewArrowClassName} top-0 h-3 w-3 -translate-y-1/2 rotate-45 border-l border-t border-[#2a2023] bg-[#0c0b0d]`} />
         <span className="flex items-start gap-3">
           {previewProfile.photoURL ? (
             <AvatarMedia
@@ -1485,7 +1489,7 @@ export default function ProfilePage() {
                 </span>
               </span>
               {typeof previewProfile.profileId === "number" ? (
-                <span className="shrink-0 text-[10px] font-mono uppercase tracking-[0.14em] text-gray-500">
+                <span className="inline-flex shrink-0 items-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1 text-[10px] font-mono uppercase tracking-[0.14em] text-[#ffb7c5]">
                   ID: {previewProfile.profileId}
                 </span>
               ) : null}
