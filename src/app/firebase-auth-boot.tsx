@@ -9,6 +9,38 @@ type FirebaseBootWindow = Window & {
 };
 
 const getWindowState = () => window as FirebaseBootWindow;
+const CHUNK_RELOAD_STORAGE_KEY = "sakura-chunk-reload-at";
+const CHUNK_RELOAD_COOLDOWN_MS = 20_000;
+
+const isChunkLoadFailure = (error: unknown) => {
+  if (!(error instanceof Error)) {
+    return false;
+  }
+
+  const message = error.message || "";
+
+  return (
+    /ChunkLoadError/i.test(message) ||
+    /Loading chunk [\w-]+ failed/i.test(message) ||
+    /Failed to fetch dynamically imported module/i.test(message) ||
+    /_next\/static\/chunks/i.test(message)
+  );
+};
+
+const reloadOnChunkFailure = () => {
+  try {
+    const lastReloadAt = Number(window.sessionStorage.getItem(CHUNK_RELOAD_STORAGE_KEY) || "0");
+
+    if (Number.isFinite(lastReloadAt) && Date.now() - lastReloadAt < CHUNK_RELOAD_COOLDOWN_MS) {
+      return;
+    }
+
+    window.sessionStorage.setItem(CHUNK_RELOAD_STORAGE_KEY, String(Date.now()));
+    window.location.reload();
+  } catch {
+    window.location.reload();
+  }
+};
 
 export default function FirebaseAuthBoot() {
   useEffect(() => {
@@ -93,8 +125,33 @@ export default function FirebaseAuthBoot() {
       }, 1200);
     }
 
+    const handleWindowError = (event: ErrorEvent) => {
+      let chunkTarget = "";
+
+      if (event.target instanceof HTMLScriptElement) {
+        chunkTarget = event.target.src || "";
+      } else if (event.target instanceof HTMLLinkElement) {
+        chunkTarget = event.target.href || "";
+      }
+
+      if (/_next\/static\/chunks\//i.test(chunkTarget) || isChunkLoadFailure(event.error)) {
+        reloadOnChunkFailure();
+      }
+    };
+
+    const handleUnhandledRejection = (event: PromiseRejectionEvent) => {
+      if (isChunkLoadFailure(event.reason)) {
+        reloadOnChunkFailure();
+      }
+    };
+
+    window.addEventListener("error", handleWindowError, true);
+    window.addEventListener("unhandledrejection", handleUnhandledRejection);
+
     return () => {
       cleanupDeferredLoad();
+      window.removeEventListener("error", handleWindowError, true);
+      window.removeEventListener("unhandledrejection", handleUnhandledRejection);
     };
   }, []);
 
