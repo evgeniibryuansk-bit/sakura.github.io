@@ -79,6 +79,7 @@
   const AVATAR_EXPORT_QUALITY = 0.72;
   const PASSTHROUGH_AVATAR_CONTENT_TYPES = new Set(["image/gif", "image/webp", "video/mp4", "video/webm"]);
   const STORAGE_AVATAR_CONTENT_TYPES = new Set(["image/gif", "image/webp", "video/mp4", "video/webm"]);
+  const PREMIUM_AVATAR_CONTENT_TYPES = new Set(["image/gif", "video/mp4", "video/webm"]);
   const PROFILE_COMMENT_MAX_LENGTH = 280;
   const PROFILE_COMMENT_MEDIA_CONTENT_TYPES = new Set([
     "image/jpeg",
@@ -729,6 +730,23 @@
     normalizeRoles(roles).some((role) =>
       COMMENT_MODERATOR_ROLE_NAMES.has(normalizeRoleName(role))
     );
+  const canUseEnhancedAvatarMedia = (roles) =>
+    normalizeRoles(roles).some((role) => {
+      const normalizedRole = normalizeRoleName(role);
+      return normalizedRole && normalizedRole !== "user";
+    });
+  const ensureAvatarUploadAllowedForRoles = (avatarType, roles) => {
+    if (!PREMIUM_AVATAR_CONTENT_TYPES.has(avatarType ?? "")) {
+      return;
+    }
+
+    if (!canUseEnhancedAvatarMedia(roles)) {
+      throw createFirebaseError(
+        "avatar/upgrade-required",
+        "Вам нужно повышение профиля, чтобы использовать GIF и видео в аватаре. Для роли user доступны только статичные картинки."
+      );
+    }
+  };
   const requiresEmailVerification = (roles) =>
     !normalizeRoles(roles).some((role) => normalizeRoleName(role) === "root");
 
@@ -2729,6 +2747,14 @@
       const hasStoredProfileRecord =
         existingSnapshot.exists() && typeof existingData?.profileId === "number";
       let persistedInFirestore = false;
+      const currentDetails = window.sakuraCurrentUserSnapshot
+        ? buildUserDetailsFromSnapshot(user, window.sakuraCurrentUserSnapshot)
+        : buildFallbackUserDetails(user);
+
+      ensureAvatarUploadAllowedForRoles(
+        avatarUpload.avatarType ?? null,
+        existingData?.roles ?? currentDetails.roles ?? ["user"]
+      );
 
       if (!hasStoredProfileRecord) {
         await resolveUserSnapshot(user);
@@ -2776,10 +2802,6 @@
           "Avatar could not be saved. Check Firestore rules for users/{uid}."
         );
       }
-
-      const currentDetails = window.sakuraCurrentUserSnapshot
-        ? buildUserDetailsFromSnapshot(user, window.sakuraCurrentUserSnapshot)
-        : buildFallbackUserDetails(user);
 
       return publishUserSnapshot(
         toUserSnapshot(user, {
@@ -2991,6 +3013,11 @@
       if (!avatarUpload?.photoURL) {
         throw createFirebaseError("storage/invalid-file", "Choose an image before uploading.");
       }
+
+      ensureAvatarUploadAllowedForRoles(
+        avatarUpload.avatarType ?? null,
+        targetDoc.data()?.roles ?? ["user"]
+      );
 
       const photoURL = avatarUpload.photoURL;
 

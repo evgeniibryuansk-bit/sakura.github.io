@@ -249,6 +249,8 @@ const getSupabaseCommentMediaUnavailableMessage = () =>
   "Supabase media upload is not configured for this build yet. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET to the deployed site build.";
 const getSupabaseAvatarUnavailableMessage = () =>
   "Supabase avatar upload is not configured for this build yet. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET to the deployed site build.";
+const USER_AVATAR_UPGRADE_MESSAGE =
+  "Вам нужно повышение профиля, чтобы использовать GIF и видео в аватаре. Для роли user доступны только статичные картинки.";
 const toCommentMediaPayload = (
   uploadResult: SupabaseCommentMediaUploadResult
 ): CommentMediaPayload => ({
@@ -269,6 +271,7 @@ const shouldCleanupUploadedMedia = (uploadResult: SupabaseCommentMediaUploadResu
   uploadResult ? Boolean(uploadResult.path) && !uploadResult.reused : false;
 const isCommentVideoMediaType = (value: string | null | undefined) =>
   value === "video/mp4" || value === "video/webm";
+const PREMIUM_AVATAR_MEDIA_TYPES = new Set(["image/gif", "video/mp4", "video/webm"]);
 
 function CommentMediaFrame({
   src,
@@ -864,6 +867,8 @@ const deriveVisibleProfileRoles = (
 
   return normalizeRoleSelection(profile?.roles ?? []);
 };
+const canUseEnhancedAvatarMediaForRoles = (roles: string[] | null | undefined) =>
+  normalizeRoleSelection(roles ?? []).some((role) => normalizeRoleName(role) !== "user");
 const profileNameOf = (user: Pick<UserProfile, "login" | "displayName" | "profileId">) =>
   user.displayName?.trim() ||
   user.login?.trim() ||
@@ -1177,6 +1182,7 @@ export default function ProfilePage() {
   );
   const profileRoles = deriveVisibleProfileRoles(activeProfile);
   const normalizedProfileRoles = profileRoles;
+  const canUseEnhancedAvatarMedia = canUseEnhancedAvatarMediaForRoles(activeProfile?.roles);
   const topProfileRole = profileRoles[0] ?? null;
   const profileHeadlineStyle = roleHeadlineStyle(topProfileRole);
   const metaCardStyle = profileMetaCardStyle(topProfileRole);
@@ -1748,6 +1754,11 @@ export default function ProfilePage() {
     event.target.value = "";
     const bridge = getWindowState().sakuraFirebaseAuth;
     if (!file || !bridge) return;
+    if (PREMIUM_AVATAR_MEDIA_TYPES.has(file.type) && !canUseEnhancedAvatarMedia) {
+      setAvatarError(USER_AVATAR_UPGRADE_MESSAGE);
+      setAvatarSuccess(null);
+      return;
+    }
     if (!isSupabaseConfigured) {
       setAvatarError(getSupabaseAvatarUnavailableMessage());
       return;
@@ -2685,7 +2696,7 @@ export default function ProfilePage() {
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Avatar</p>
                 <div className="mt-5 rounded-[24px] border border-[#1d1d1d] bg-[#090909] p-4">
                   <p className="text-sm font-semibold text-white">{activeProfile.photoURL ? "Custom Avatar" : "Generated Avatar"}</p>
-                  <p className="mt-2 text-xs leading-relaxed text-gray-400">Upload, replace, or delete your avatar here. PNG and JPG support up to 5 MB. GIF, WEBP, MP4, and WEBM are also supported with a smaller limit.</p>
+                  <p className="mt-2 text-xs leading-relaxed text-gray-400">Upload, replace, or delete your avatar here. PNG, JPG, and WEBP are available to all users. GIF, MP4, and WEBM require a higher profile tier.</p>
                   <div className="mt-4 flex flex-wrap items-center gap-3">
                     <button type="button" onClick={() => avatarInputRef.current?.click()} disabled={isAvatarUploading || isAvatarDeleting} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">
                       {isAvatarUploading ? "Uploading..." : activeProfile.photoURL ? "Replace Avatar" : "Upload Avatar"}
@@ -3003,7 +3014,7 @@ export default function ProfilePage() {
 
                     <section className="rounded-[24px] border border-[#1d1d1d] bg-[#0d0d0d] p-5">
                       <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-gray-500">Avatar</p>
-                      <p className="mt-3 text-xs leading-relaxed text-gray-400">Upload, replace, or delete the avatar for this account. PNG and JPG support up to 5 MB. GIF, WEBP, MP4, and WEBM are also supported with a smaller limit.</p>
+                      <p className="mt-3 text-xs leading-relaxed text-gray-400">Upload, replace, or delete the avatar for this account. PNG, JPG, and WEBP are available to all users. GIF, MP4, and WEBM require a higher profile tier.</p>
                       <div className="mt-4 flex flex-wrap items-center gap-3">
                         <button
                           type="button"
