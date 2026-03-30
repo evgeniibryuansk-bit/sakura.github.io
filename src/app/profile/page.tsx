@@ -1001,6 +1001,7 @@ export default function ProfilePage() {
   const [isEditingCommentMediaRemoved, setIsEditingCommentMediaRemoved] = useState(false);
   const [isCommentUpdating, setIsCommentUpdating] = useState(false);
   const [deletingCommentId, setDeletingCommentId] = useState<string | null>(null);
+  const [confirmingCommentDeleteId, setConfirmingCommentDeleteId] = useState<string | null>(null);
   const [siteOnlineCount, setSiteOnlineCount] = useState<number | null>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const editingCommentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
@@ -3109,6 +3110,7 @@ export default function ProfilePage() {
       }
 
       setCommentSuccess("Comment deleted.");
+      setConfirmingCommentDeleteId((currentId) => (currentId === resolvedCommentId ? null : currentId));
 
       if (currentComment?.mediaPath) {
         void deleteCommentMediaIfUnused(bridge, currentComment.mediaPath).catch((cleanupError) => {
@@ -3122,9 +3124,26 @@ export default function ProfilePage() {
     }
   };
 
+  const requestCommentDeleteConfirmation = (commentId: string) => {
+    setCommentError(null);
+    setCommentSuccess(null);
+    setConfirmingCommentDeleteId(commentId);
+  };
+
+  const cancelCommentDeleteConfirmation = (commentId?: string) => {
+    setConfirmingCommentDeleteId((currentId) => {
+      if (!commentId) {
+        return null;
+      }
+
+      return currentId === commentId ? null : currentId;
+    });
+  };
+
   const handleCommentEditStart = (comment: ProfileComment) => {
     setCommentError(null);
     setCommentSuccess(null);
+    setConfirmingCommentDeleteId((currentId) => (currentId === comment.id ? null : currentId));
     setEditingCommentId(comment.id);
     setEditingCommentMessage(comment.message);
     setEditingDraftMentionProfilesByKey((currentProfiles) =>
@@ -3465,6 +3484,7 @@ export default function ProfilePage() {
                   {!isCommentsLoading && !commentsError && comments.length ? <div className="mt-4 flex flex-col gap-3">
                     {comments.map((comment) => {
                       const isDeletingComment = deletingCommentId === comment.id;
+                      const isConfirmingCommentDelete = confirmingCommentDeleteId === comment.id;
                       const isEditingComment = editingCommentId === comment.id;
                       const isSavingCommentUpdate = isEditingComment && isCommentUpdating;
                       const showEditAction = canEditComment(comment);
@@ -3483,18 +3503,23 @@ export default function ProfilePage() {
                             <div className="min-w-0">
                               <div className="flex min-w-0 items-center gap-2">
                                 {comment.authorProfileId ? <a href={profilePath(comment.authorProfileId)} style={commentAuthorStyle} className="min-w-0 truncate text-sm font-semibold transition hover:text-white">{comment.authorName}</a> : <p style={commentAuthorStyle} className="min-w-0 truncate text-sm font-semibold">{comment.authorName}</p>}
-                                {isCommentEdited ? <span className="shrink-0 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">Edited</span> : null}
+                                {!isConfirmingCommentDelete && isCommentEdited ? <span className="shrink-0 text-[10px] font-mono uppercase tracking-[0.16em] text-gray-500">Edited</span> : null}
                               </div>
-                              <p className="mt-1 text-xs text-gray-500">{formatTime(comment.createdAt)}</p>
+                              {!isConfirmingCommentDelete ? <p className="mt-1 text-xs text-gray-500">{formatTime(comment.createdAt)}</p> : null}
                             </div>
                             {resolvedCommentAuthorProfile ? renderProfileHoverPreview(resolvedCommentAuthorProfile, comment.authorName, "start") : null}
                           </div>
                           <div className="flex shrink-0 flex-wrap items-center justify-end gap-2">
-                            {showEditAction && !isEditingComment ? <button type="button" onClick={() => handleCommentEditStart(comment)} disabled={isDeletingComment || isCommentUpdating} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Edit</button> : null}
-                            {showDeleteAction ? <button type="button" onClick={() => handleCommentDelete(comment.id)} disabled={isDeletingComment || isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">{isDeletingComment ? "Deleting..." : "Delete"}</button> : null}
+                            {isConfirmingCommentDelete ? <>
+                              <button type="button" onClick={() => handleCommentDelete(comment.id)} disabled={isDeletingComment || isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60">{isDeletingComment ? "Deleting..." : "Yes"}</button>
+                              <button type="button" onClick={() => cancelCommentDeleteConfirmation(comment.id)} disabled={isDeletingComment} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">No</button>
+                            </> : <>
+                              {showEditAction && !isEditingComment ? <button type="button" onClick={() => handleCommentEditStart(comment)} disabled={isDeletingComment || isCommentUpdating} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Edit</button> : null}
+                              {showDeleteAction ? <button type="button" onClick={() => requestCommentDeleteConfirmation(comment.id)} disabled={isDeletingComment || isSavingCommentUpdate} className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60">Delete</button> : null}
+                            </>}
                           </div>
                         </div>
-                        {isEditingComment ? <div className="mt-3">
+                        {isConfirmingCommentDelete ? null : isEditingComment ? <div className="mt-3">
                           <textarea
                             ref={editingCommentTextareaRef}
                             value={editingCommentMessage}
