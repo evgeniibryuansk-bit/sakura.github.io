@@ -181,6 +181,7 @@ const USER_UPDATE_EVENT = "sakura-user-update";
 const OPEN_AUTH_MODAL_EVENT = "sakura-open-auth-modal";
 const EMAIL_VERIFICATION_LOCK_EVENT = "sakura-email-verification-lock";
 const PRESENCE_DIRTY_EVENT = "sakura-presence-dirty";
+const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
 const LOGIN_PATTERN = /^[A-Za-zА-Яа-яЁё0-9._-]+$/;
 
 const ROLE_CHIP_ORDER = new Map([
@@ -513,7 +514,19 @@ function buildUserInitials(user: AuthUserSnapshot) {
 }
 
 function profileHref(profileId: number | null | undefined) {
-  return profileId ? `${repoBasePath}/profile/${profileId}` : `${repoBasePath}/profile`;
+  if (typeof profileId === "number" && profileId > 0) {
+    return `${repoBasePath}/profile/${profileId}`;
+  }
+
+  if (typeof window !== "undefined") {
+    const storedProfileId = window.sessionStorage.getItem(CURRENT_PROFILE_ID_STORAGE_KEY);
+
+    if (storedProfileId && /^\d+$/.test(storedProfileId)) {
+      return `${repoBasePath}/profile/${storedProfileId}`;
+    }
+  }
+
+  return `${repoBasePath}/profile`;
 }
 
 function scrollToSection(sectionId: string) {

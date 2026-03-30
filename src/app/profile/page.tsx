@@ -1003,6 +1003,10 @@ const getInitialProfile = (currentUser: UserProfile | null, requestedProfileId: 
 const getInitialBootstrap = () => {
   const currentUser = getInitialCurrentUser();
   const requestedProfileId = getInitialRequestedProfileId();
+  const currentUserProfileId =
+    currentUser && !currentUser.isAnonymous && typeof currentUser.profileId === "number"
+      ? currentUser.profileId
+      : null;
 
   if (
     typeof window !== "undefined" &&
@@ -1010,6 +1014,15 @@ const getInitialBootstrap = () => {
     window.location.pathname !== profilePath(requestedProfileId)
   ) {
     window.history.replaceState(null, "", profilePath(requestedProfileId));
+  }
+
+  if (
+    typeof window !== "undefined" &&
+    requestedProfileId === null &&
+    currentUserProfileId !== null &&
+    window.location.pathname === `${repoBasePath}/profile`
+  ) {
+    window.history.replaceState(null, "", profilePath(currentUserProfileId));
   }
 
   return {
