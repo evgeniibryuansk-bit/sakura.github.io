@@ -3,7 +3,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent } from "react";
+import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { AvatarMedia, AVATAR_FILE_ACCEPT } from "../avatar-media";
 import { HeaderSocialLinks } from "../header-social-links";
 import { SiteOnlineBadge } from "../site-online-badge";
@@ -135,6 +135,7 @@ const USER_UPDATE_EVENT = "sakura-user-update";
 const PROFILE_PATH_STORAGE_KEY = "sakura-profile-path";
 const CURRENT_PROFILE_ID_STORAGE_KEY = "sakura-current-profile-id";
 const PROFILE_BUILD_MARKER = "role-colors-v53";
+const COMMENT_MENTION_PATTERN = /@([A-Za-z\u0400-\u04FF0-9._-]{3,24})/g;
 const repoBasePath = "/sakura.github.io";
 const COMMENT_MEDIA_FILE_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm";
 const PRESENCE_ACTIVE_WINDOW_MS = 5 * 60 * 1000;
@@ -965,6 +966,7 @@ export default function ProfilePage() {
   const [comments, setComments] = useState<ProfileComment[]>([]);
   const [commentAuthorProfiles, setCommentAuthorProfiles] = useState<Record<number, UserProfile>>({});
   const [commentAuthorProfilesByCommentId, setCommentAuthorProfilesByCommentId] = useState<Record<string, UserProfile>>({});
+  const [commentMentionProfilesByKey, setCommentMentionProfilesByKey] = useState<Record<string, UserProfile>>({});
   const [isCommentsLoading, setIsCommentsLoading] = useState(false);
   const [commentsError, setCommentsError] = useState<string | null>(null);
   const [commentInput, setCommentInput] = useState("");
@@ -1343,6 +1345,88 @@ export default function ProfilePage() {
     typeof value === "string"
       ? value.trim().replace(/^@+/, "").toLocaleLowerCase().replace(/\s+/g, " ")
       : "";
+  const isCommentMentionBoundary = (value: string | undefined) =>
+    !value || !/[A-Za-z\u0400-\u04FF0-9._-]/.test(value);
+  const extractCommentMentionKeys = (value: string | null | undefined) => {
+    if (typeof value !== "string" || !value) {
+      return [];
+    }
+
+    const mentionKeys: string[] = [];
+    COMMENT_MENTION_PATTERN.lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = COMMENT_MENTION_PATTERN.exec(value))) {
+      const matchIndex = match.index;
+      const nextIndex = matchIndex + match[0].length;
+      const previousCharacter = matchIndex > 0 ? value[matchIndex - 1] : undefined;
+      const nextCharacter = nextIndex < value.length ? value[nextIndex] : undefined;
+
+      if (!isCommentMentionBoundary(previousCharacter) || !isCommentMentionBoundary(nextCharacter)) {
+        continue;
+      }
+
+      const mentionKey = normalizeCommentAuthorKey(match[1]);
+
+      if (mentionKey && !mentionKeys.includes(mentionKey)) {
+        mentionKeys.push(mentionKey);
+      }
+    }
+
+    return mentionKeys;
+  };
+  const renderCommentMessageWithMentions = (value: string) => {
+    const parts: ReactNode[] = [];
+    COMMENT_MENTION_PATTERN.lastIndex = 0;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+
+    while ((match = COMMENT_MENTION_PATTERN.exec(value))) {
+      const matchIndex = match.index;
+      const nextIndex = matchIndex + match[0].length;
+      const previousCharacter = matchIndex > 0 ? value[matchIndex - 1] : undefined;
+      const nextCharacter = nextIndex < value.length ? value[nextIndex] : undefined;
+
+      if (!isCommentMentionBoundary(previousCharacter) || !isCommentMentionBoundary(nextCharacter)) {
+        continue;
+      }
+
+      if (lastIndex < matchIndex) {
+        parts.push(value.slice(lastIndex, matchIndex));
+      }
+
+      const mentionLogin = match[1];
+      const mentionKey = normalizeCommentAuthorKey(mentionLogin);
+      const mentionProfile = mentionKey ? commentMentionProfilesByKey[mentionKey] : null;
+      const mentionText = `@${mentionLogin}`;
+
+      if (mentionProfile?.profileId) {
+        parts.push(
+          <a
+            key={`${mentionKey}:${matchIndex}`}
+            href={profilePath(mentionProfile.profileId)}
+            className="font-semibold text-[#8fc4ff] transition hover:text-white"
+          >
+            {mentionText}
+          </a>
+        );
+      } else {
+        parts.push(mentionText);
+      }
+
+      lastIndex = nextIndex;
+    }
+
+    if (!parts.length) {
+      return value;
+    }
+
+    if (lastIndex < value.length) {
+      parts.push(value.slice(lastIndex));
+    }
+
+    return parts;
+  };
   const commentMatchesUser = (comment: ProfileComment, user: UserProfile | null) => {
     if (!user) {
       return false;
@@ -1461,6 +1545,7 @@ export default function ProfilePage() {
       setComments([]);
       setCommentAuthorProfiles({});
       setCommentAuthorProfilesByCommentId({});
+      setCommentMentionProfilesByKey({});
       setCommentsError(null);
       setIsAdminPanelOpen(false);
       setBanError(null);
@@ -1556,6 +1641,7 @@ export default function ProfilePage() {
     if (!comments.length) {
       setCommentAuthorProfiles({});
       setCommentAuthorProfilesByCommentId({});
+      setCommentMentionProfilesByKey({});
       return;
     }
 
@@ -1726,6 +1812,64 @@ export default function ProfilePage() {
       isCancelled = true;
     };
   }, [comments, commentAuthorProfiles, activeProfile, visibleCurrentUser]);
+
+  useEffect(() => {
+    if (!comments.length) {
+      setCommentMentionProfilesByKey({});
+      return;
+    }
+
+    const bridge = getWindowState().sakuraFirebaseAuth;
+
+    if (!bridge) {
+      setCommentMentionProfilesByKey({});
+      return;
+    }
+
+    let isCancelled = false;
+
+    void (async () => {
+      const nextMentionProfilesByKey: Record<string, UserProfile> = {};
+
+      const knownProfiles = [activeProfile, visibleCurrentUser, ...Object.values(commentAuthorProfiles)].filter(
+        (profile): profile is UserProfile => Boolean(profile)
+      );
+
+      knownProfiles.forEach((knownProfile) => {
+        const knownLoginKey = normalizeCommentAuthorKey(knownProfile.login);
+
+        if (knownLoginKey) {
+          nextMentionProfilesByKey[knownLoginKey] = knownProfile;
+        }
+      });
+
+      const mentionKeys = [...new Set(comments.flatMap((comment) => extractCommentMentionKeys(comment.message)))];
+      const unresolvedMentionKeys = mentionKeys.filter((mentionKey) => !nextMentionProfilesByKey[mentionKey]);
+
+      if (unresolvedMentionKeys.length) {
+        await Promise.all(
+          unresolvedMentionKeys.map(async (mentionKey) => {
+            try {
+              const resolvedMentionProfile = await bridge.getProfileByAuthorName(`@${mentionKey}`);
+
+              if (resolvedMentionProfile) {
+                nextMentionProfilesByKey[mentionKey] = resolvedMentionProfile;
+              }
+            } catch (error) {
+            }
+          })
+        );
+      }
+
+      if (!isCancelled) {
+        setCommentMentionProfilesByKey(nextMentionProfilesByKey);
+      }
+    })();
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [comments, activeProfile, visibleCurrentUser, commentAuthorProfiles]);
 
   const normalizedDraftRoles = normalizeRoleSelection(draftRoles);
   const availableRoleOptions = EDITABLE_ROLE_OPTIONS.filter(
@@ -2587,7 +2731,7 @@ export default function ProfilePage() {
                             <span className="text-xs text-gray-500">{editingCommentMessage.trim().length}/280</span>
                           </div>
                         </div> : <div className="mt-3 space-y-3">
-                          {comment.message ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-300">{comment.message}</p> : null}
+                          {comment.message ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-300">{renderCommentMessageWithMentions(comment.message)}</p> : null}
                           {comment.mediaURL ? <div className="overflow-hidden rounded-[22px] border border-[#232323] bg-[#050505]">
                             <CommentMediaFrame src={comment.mediaURL} mediaType={comment.mediaType} alt={`${comment.authorName} comment attachment`} className="block max-h-[360px] w-full object-contain" controls={isCommentVideoMediaType(comment.mediaType)} />
                           </div> : null}
