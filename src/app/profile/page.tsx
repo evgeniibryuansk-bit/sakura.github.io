@@ -1527,6 +1527,89 @@ export default function ProfilePage() {
       Object.entries(profilesByKey).filter(([mentionKey]) => activeKeys.has(mentionKey))
     );
   };
+  const removeMentionFromComposerValue = (value: string, login: string | null | undefined) => {
+    const mentionKeyToRemove = normalizeCommentAuthorKey(login);
+
+    if (!value || !mentionKeyToRemove) {
+      return value;
+    }
+
+    const parts: string[] = [];
+    COMMENT_MENTION_PATTERN.lastIndex = 0;
+    let lastIndex = 0;
+    let match: RegExpExecArray | null;
+    let removed = false;
+
+    while ((match = COMMENT_MENTION_PATTERN.exec(value))) {
+      const matchIndex = match.index;
+      const nextIndex = matchIndex + match[0].length;
+      const previousCharacter = matchIndex > 0 ? value[matchIndex - 1] : undefined;
+      const nextCharacter = nextIndex < value.length ? value[nextIndex] : undefined;
+
+      if (!isCommentMentionBoundary(previousCharacter) || !isCommentMentionBoundary(nextCharacter)) {
+        continue;
+      }
+
+      const currentMentionKey = normalizeCommentAuthorKey(match[1]);
+
+      if (currentMentionKey !== mentionKeyToRemove) {
+        continue;
+      }
+
+      if (lastIndex < matchIndex) {
+        parts.push(value.slice(lastIndex, matchIndex));
+      }
+
+      removed = true;
+      lastIndex = nextIndex;
+    }
+
+    if (!removed) {
+      return value;
+    }
+
+    if (lastIndex < value.length) {
+      parts.push(value.slice(lastIndex));
+    }
+
+    return parts
+      .join("")
+      .replace(/[ \t]{2,}/g, " ")
+      .replace(/[ \t]+\n/g, "\n")
+      .replace(/\n[ \t]+/g, "\n")
+      .trim();
+  };
+  const removeMentionAttachment = (mode: MentionComposerMode, profile: UserProfile) => {
+    const nextValue =
+      mode === "new"
+        ? removeMentionFromComposerValue(commentInput, profile.login)
+        : removeMentionFromComposerValue(editingCommentMessage, profile.login);
+
+    if (mode === "new") {
+      setCommentInput(nextValue);
+      setCommentDraftMentionProfilesByKey((currentProfiles) =>
+        filterComposerMentionProfilesByValue(nextValue, currentProfiles)
+      );
+    } else {
+      setEditingCommentMessage(nextValue);
+      setEditingDraftMentionProfilesByKey((currentProfiles) =>
+        filterComposerMentionProfilesByValue(nextValue, currentProfiles)
+      );
+    }
+
+    window.requestAnimationFrame(() => {
+      const nextTextarea =
+        mode === "new" ? commentTextareaRef.current : editingCommentTextareaRef.current;
+
+      if (!nextTextarea) {
+        return;
+      }
+
+      nextTextarea.focus();
+      nextTextarea.setSelectionRange(nextValue.length, nextValue.length);
+      syncTextareaHeight(nextTextarea);
+    });
+  };
   const renderComposerMentionAttachments = (
     mode: MentionComposerMode,
     value: string,
@@ -1551,41 +1634,53 @@ export default function ProfilePage() {
             const profilePreviewInitials = initialsOf(profile);
 
             return (
-              <a
+              <div
                 key={`${mode}:${profile.uid}`}
-                href={typeof profile.profileId === "number" ? profilePath(profile.profileId) : "#"}
-                className="inline-flex min-w-0 max-w-full items-center gap-3 rounded-full border border-[#2a2022] bg-[#120d11] px-3 py-2 transition hover:border-[#ffb7c5]/40 hover:bg-[#171014]"
+                className="group relative inline-flex min-w-0 max-w-full"
               >
-                {profile.photoURL ? (
-                  <AvatarMedia
-                    src={profile.photoURL}
-                    alt={profilePreviewName}
-                    loading="lazy"
-                    decoding="async"
-                    className="h-9 w-9 shrink-0 rounded-full border border-[#2a2022] object-cover"
-                  />
-                ) : (
-                  <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#2a2022] bg-[#171012] text-[10px] font-black uppercase text-[#ffb7c5]">
-                    {profilePreviewInitials}
-                  </span>
-                )}
-                <span className="min-w-0">
-                  <span
-                    style={roleCommentAuthorStyle(profileRole)}
-                    className="block truncate text-xs font-semibold"
-                  >
-                    {profilePreviewName}
-                  </span>
-                  <span
-                    style={{ ...roleBadgeStyle(profileBadgeRole), ...roleBadgeTextStyle }}
-                    className="mt-1 inline-flex max-w-full items-center truncate whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-bold"
-                  >
-                    <span aria-hidden="true" className="inline-flex items-center truncate">
-                      {renderRoleBadgeText(profileBadgeRole)}
+                <a
+                  href={typeof profile.profileId === "number" ? profilePath(profile.profileId) : "#"}
+                  className="inline-flex min-w-0 max-w-full items-center gap-3 rounded-full border border-[#2a2022] bg-[#120d11] px-3 py-2 pr-10 transition hover:border-[#ffb7c5]/40 hover:bg-[#171014]"
+                >
+                  {profile.photoURL ? (
+                    <AvatarMedia
+                      src={profile.photoURL}
+                      alt={profilePreviewName}
+                      loading="lazy"
+                      decoding="async"
+                      className="h-9 w-9 shrink-0 rounded-full border border-[#2a2022] object-cover"
+                    />
+                  ) : (
+                    <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-[#2a2022] bg-[#171012] text-[10px] font-black uppercase text-[#ffb7c5]">
+                      {profilePreviewInitials}
+                    </span>
+                  )}
+                  <span className="min-w-0">
+                    <span
+                      style={roleCommentAuthorStyle(profileRole)}
+                      className="block truncate text-xs font-semibold"
+                    >
+                      {profilePreviewName}
+                    </span>
+                    <span
+                      style={{ ...roleBadgeStyle(profileBadgeRole), ...roleBadgeTextStyle }}
+                      className="mt-1 inline-flex max-w-full items-center truncate whitespace-nowrap rounded-full border px-2.5 py-1 text-[9px] font-bold"
+                    >
+                      <span aria-hidden="true" className="inline-flex items-center truncate">
+                        {renderRoleBadgeText(profileBadgeRole)}
+                      </span>
                     </span>
                   </span>
-                </span>
-              </a>
+                </a>
+                <button
+                  type="button"
+                  onClick={() => removeMentionAttachment(mode, profile)}
+                  className="absolute right-2 top-1/2 inline-flex h-6 w-6 -translate-y-1/2 items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] text-[12px] font-bold text-[#ffb7c5] opacity-0 transition hover:border-[#ffb7c5]/40 hover:text-white group-hover:opacity-100"
+                  aria-label={`Remove ${profilePreviewName} mention`}
+                >
+                  ×
+                </button>
+              </div>
             );
           })}
         </div>
