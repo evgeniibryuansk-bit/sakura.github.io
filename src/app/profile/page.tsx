@@ -2152,7 +2152,7 @@ export default function ProfilePage() {
           </nav>
           <SiteOnlineBadge
             count={siteOnlineCount}
-            className="self-end xl:absolute xl:left-full xl:top-1/2 xl:h-10 xl:-translate-y-1/2 xl:translate-x-4 xl:px-4 xl:py-2"
+            className="self-end xl:absolute xl:left-full xl:top-1/2 xl:-translate-y-1/2 xl:translate-x-4"
           />
         </div>
 
