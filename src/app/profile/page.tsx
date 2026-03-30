@@ -288,7 +288,6 @@ function CommentMediaFrame({
       <video
         src={src}
         aria-label={alt}
-        title={alt}
         controls={controls}
         autoPlay={!controls}
         loop={!controls}
