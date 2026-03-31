@@ -2009,6 +2009,22 @@
       return createFirebaseError("comments/delete-forbidden", message);
     }
 
+    if (message === "Only root can assign the root role.") {
+      return createFirebaseError("roles/root-assignment-forbidden", message);
+    }
+
+    if (message === "Co-owner cannot manage root accounts.") {
+      return createFirebaseError("admin/root-target-forbidden", message);
+    }
+
+    if (message === "You cannot ban your own account.") {
+      return createFirebaseError("ban/self-forbidden", message);
+    }
+
+    if (message === "Target profile id is required.") {
+      return createFirebaseError("profile/invalid-id", "Profile id must be a positive number.");
+    }
+
     if (message === "Authentication required." || message === "Actor profile not found.") {
       return createFirebaseError("auth/no-current-user", "Sign in again to update your profile.");
     }
@@ -5899,12 +5915,58 @@
       });
     };
     const adminSetProfileBan = async (profileId, nextIsBanned) => {
-      const { user, actorSnapshot } = await ensureRootActorSnapshot();
-
       if (!Number.isInteger(profileId) || profileId <= 0) {
         throw createFirebaseError("profile/invalid-id", "Profile id must be a positive number.");
       }
 
+      const isBanned = Boolean(nextIsBanned);
+      const supabaseResponse = await callSupabaseAuthenticatedRpc(
+        "admin_set_profile_ban_rpc",
+        {
+          target_profile_id: profileId,
+          target_is_banned: isBanned,
+        },
+        "Ban status could not be saved."
+      );
+
+      if (supabaseResponse) {
+        const responseIsBanned =
+          typeof supabaseResponse?.isBanned === "boolean"
+            ? supabaseResponse.isBanned
+            : isBanned;
+        const responseBannedAt =
+          typeof supabaseResponse?.bannedAt === "string" ? supabaseResponse.bannedAt : null;
+
+        if (window.sakuraCurrentUserSnapshot?.profileId === profileId) {
+          const currentSnapshot = await resolveSupabaseSessionSnapshotFallback();
+
+          if (currentSnapshot) {
+            const nextSnapshot = {
+              ...currentSnapshot,
+              isBanned: responseIsBanned,
+              bannedAt: responseBannedAt,
+            };
+
+            if (responseIsBanned) {
+              await enforceActiveSessionNotBanned(nextSnapshot, { throwError: true });
+            }
+
+            return nextSnapshot;
+          }
+        }
+
+        const refreshedSnapshot = await getProfileById(profileId).catch(() => null);
+
+        if (refreshedSnapshot) {
+          return {
+            ...refreshedSnapshot,
+            isBanned: responseIsBanned,
+            bannedAt: responseBannedAt,
+          };
+        }
+      }
+
+      const { user, actorSnapshot } = await ensureRootActorSnapshot();
       const targetDoc = await findUserByProfileId(profileId);
 
       if (!targetDoc) {
@@ -5913,7 +5975,6 @@
 
       ensureActorCanManageTargetProfile(actorSnapshot?.roles ?? [], targetDoc.data()?.roles ?? []);
 
-      const isBanned = Boolean(nextIsBanned);
       const bannedAt = isBanned ? new Date().toISOString() : null;
 
       if (targetDoc.id === user.uid && isBanned) {
@@ -6028,14 +6089,51 @@
     };
 
     const updateProfileRoles = async (profileId, nextRoles) => {
+      if (!Number.isInteger(profileId) || profileId <= 0) {
+        throw createFirebaseError("profile/invalid-id", "Profile id must be a positive number.");
+      }
+
+      const roles = normalizeRoles(nextRoles);
+      const supabaseResponse = await callSupabaseAuthenticatedRpc(
+        "admin_update_profile_roles_rpc",
+        {
+          target_profile_id: profileId,
+          target_roles: roles,
+        },
+        "Roles could not be updated."
+      );
+
+      if (supabaseResponse) {
+        const responseRoles =
+          Array.isArray(supabaseResponse?.roles) && supabaseResponse.roles.length
+            ? normalizeRoles(supabaseResponse.roles)
+            : roles;
+
+        if (window.sakuraCurrentUserSnapshot?.profileId === profileId) {
+          const currentSnapshot = await resolveSupabaseSessionSnapshotFallback();
+
+          if (currentSnapshot) {
+            return {
+              ...currentSnapshot,
+              roles: responseRoles,
+            };
+          }
+        }
+
+        const refreshedSnapshot = await getProfileById(profileId).catch(() => null);
+
+        if (refreshedSnapshot) {
+          return {
+            ...refreshedSnapshot,
+            roles: responseRoles,
+          };
+        }
+      }
+
       const { user, actorSnapshot } = await ensureRootActorSnapshot();
 
       if (!user || user.isAnonymous) {
         throw createFirebaseError("auth/no-current-user", "Sign in again to manage roles.");
-      }
-
-      if (!Number.isInteger(profileId) || profileId <= 0) {
-        throw createFirebaseError("profile/invalid-id", "Profile id must be a positive number.");
       }
 
       const targetDoc = await findUserByProfileId(profileId);
@@ -6044,7 +6142,6 @@
         return null;
       }
 
-      const roles = normalizeRoles(nextRoles);
       const actorRoles = actorSnapshot?.roles ?? [];
 
       ensureActorCanAssignRoles(actorRoles, targetDoc.data()?.roles ?? [], roles);
@@ -6153,6 +6250,27 @@
       const currentProviderIds = normalizeProviderIdsList(
         window.sakuraCurrentUserSnapshot?.providerIds ?? getProviderIds(user)
       );
+
+      if (user.emailVerified || hasTrustedEmailProvider(currentProviderIds)) {
+        const supabaseSnapshot = await resolveSupabaseSessionSnapshotFallback();
+
+        if (supabaseSnapshot) {
+          const snapshot = publishUserSnapshot({
+            ...supabaseSnapshot,
+            emailVerified: true,
+            verificationRequired: false,
+            verificationEmailSent: false,
+            providerIds:
+              currentProviderIds.length > 0 ? currentProviderIds : supabaseSnapshot.providerIds,
+          });
+          const allowedSnapshot = await enforceActiveSessionNotBanned(snapshot);
+
+          return {
+            ...allowedSnapshot,
+            verificationEmailSent: false,
+          };
+        }
+      }
 
       if (hasTrustedEmailProvider(currentProviderIds)) {
         try {
