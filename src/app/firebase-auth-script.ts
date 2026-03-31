@@ -4748,6 +4748,15 @@
       deleteAvatar,
       adminUpdateProfileAvatar,
       adminDeleteProfileAvatar,
+      getAuthToken: async () => {
+        const user = auth.currentUser;
+
+        if (!user || user.isAnonymous) {
+          return null;
+        }
+
+        return getSupabaseSyncToken(user);
+      },
       syncPresence: async (options = {}) => {
         const user = auth.currentUser;
 

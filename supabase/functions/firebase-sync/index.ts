@@ -82,6 +82,16 @@ const normalizeRoles = (value: unknown) =>
         .slice(0, 16)
     : [];
 
+const normalizeBucketName = (value: unknown) =>
+  typeof value === "string" && value.trim()
+    ? value.trim().slice(0, 128)
+    : "comment-media";
+
+const normalizeStorageObjectPath = (value: unknown) =>
+  typeof value === "string" && value.trim()
+    ? value.trim().replace(/^\/+/, "").slice(0, 1024)
+    : null;
+
 const hasCommentModerationRole = (roles: string[]) =>
   roles.some((role) =>
     [
@@ -93,6 +103,8 @@ const hasCommentModerationRole = (roles: string[]) =>
       "support",
     ].includes(role)
   );
+
+const canManageStorageObjects = (roles: string[]) => hasCommentModerationRole(roles);
 
 const getBearerToken = (request: Request) => {
   const authorization = request.headers.get("authorization") ?? "";
@@ -137,6 +149,54 @@ const loadActorProfile = async (firebaseUid: string): Promise<ActorProfile> => {
   return {
     profileId: normalizeInteger(data?.profile_id),
     roles: normalizeRoles(data?.roles),
+  };
+};
+
+const authorizeStorageObjectPath = async (
+  firebaseUid: string,
+  actorProfile: ActorProfile,
+  objectPath: string,
+) => {
+  const normalizedPath = normalizeStorageObjectPath(objectPath);
+
+  if (!normalizedPath) {
+    return {
+      ok: false,
+      error: "Storage object path is required.",
+    };
+  }
+
+  const pathSegments = normalizedPath.split("/").filter(Boolean);
+
+  if (pathSegments.length < 3) {
+    return {
+      ok: false,
+      error: "Storage object path must include folder, uid, and file name.",
+    };
+  }
+
+  const folder = pathSegments[0];
+  const targetUid = pathSegments[1];
+  const isOwner = targetUid === firebaseUid;
+  const canModerate = canManageStorageObjects(actorProfile.roles);
+
+  if (!["avatars", "comments"].includes(folder)) {
+    return {
+      ok: false,
+      error: "Storage object path must be inside avatars/ or comments/.",
+    };
+  }
+
+  if (!isOwner && !canModerate) {
+    return {
+      ok: false,
+      error: "Storage action is not allowed for this actor.",
+    };
+  }
+
+  return {
+    ok: true,
+    path: normalizedPath,
   };
 };
 
@@ -342,6 +402,65 @@ const handleCommentDelete = async (firebaseUid: string, body: JsonRecord) => {
   return json({ ok: true, action: "delete_comment", commentId, deleted: true });
 };
 
+const handleCreateSignedUploadUrl = async (firebaseUid: string, body: JsonRecord) => {
+  const bucket = normalizeBucketName(body.bucket);
+  const actorProfile = await loadActorProfile(firebaseUid);
+  const authorization = await authorizeStorageObjectPath(
+    firebaseUid,
+    actorProfile,
+    String(body.objectPath ?? ""),
+  );
+
+  if (!authorization.ok || !authorization.path) {
+    return json({ error: authorization.error ?? "Storage upload is not allowed." }, 403);
+  }
+
+  const { data, error } = await supabaseAdmin.storage
+    .from(bucket)
+    .createSignedUploadUrl(authorization.path);
+
+  if (error) {
+    throw error;
+  }
+
+  return json({
+    ok: true,
+    action: "create_signed_upload_url",
+    bucket,
+    path: data?.path ?? authorization.path,
+    token: typeof data?.token === "string" ? data.token : null,
+  });
+};
+
+const handleDeleteStorageObject = async (firebaseUid: string, body: JsonRecord) => {
+  const bucket = normalizeBucketName(body.bucket);
+  const actorProfile = await loadActorProfile(firebaseUid);
+  const authorization = await authorizeStorageObjectPath(
+    firebaseUid,
+    actorProfile,
+    String(body.objectPath ?? ""),
+  );
+
+  if (!authorization.ok || !authorization.path) {
+    return json({ error: authorization.error ?? "Storage delete is not allowed." }, 403);
+  }
+
+  const { error } = await supabaseAdmin.storage
+    .from(bucket)
+    .remove([authorization.path]);
+
+  if (error) {
+    throw error;
+  }
+
+  return json({
+    ok: true,
+    action: "delete_storage_object",
+    bucket,
+    path: authorization.path,
+  });
+};
+
 Deno.serve(async (request) => {
   if (request.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -371,6 +490,10 @@ Deno.serve(async (request) => {
         return await handleCommentUpsert(actor.uid, body);
       case "delete_comment":
         return await handleCommentDelete(actor.uid, body);
+      case "create_signed_upload_url":
+        return await handleCreateSignedUploadUrl(actor.uid, body);
+      case "delete_storage_object":
+        return await handleDeleteStorageObject(actor.uid, body);
       default:
         return json({ error: "Unsupported action." }, 400);
     }

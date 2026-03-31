@@ -18,6 +18,43 @@ const ALLOWED_AVATAR_MEDIA_TYPES = new Set([
   "video/webm",
 ]);
 const MAX_AVATAR_UPLOAD_BYTES = 50 * 1024 * 1024;
+const supabaseSyncFunctionUrl = (() => {
+  const explicitUrl = process.env.NEXT_PUBLIC_SUPABASE_SYNC_FUNCTION_URL?.trim() ?? "";
+
+  if (explicitUrl) {
+    return explicitUrl;
+  }
+
+  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL?.trim() ?? "";
+
+  if (!supabaseUrl) {
+    return "";
+  }
+
+  try {
+    const baseUrl = new URL(supabaseUrl);
+    const baseSuffix = ".supabase.co";
+    const nextHost = baseUrl.host.endsWith(baseSuffix)
+      ? `${baseUrl.host.slice(0, baseUrl.host.length - baseSuffix.length)}.functions.supabase.co`
+      : baseUrl.host;
+
+    return `${baseUrl.protocol}//${nextHost}/firebase-sync`;
+  } catch {
+    return "";
+  }
+})();
+
+type StorageRuntimeWindow = Window & {
+  sakuraFirebaseAuth?: {
+    getAuthToken?: () => Promise<string | null>;
+  };
+};
+
+type SignedUploadPayload = {
+  bucket: string;
+  path: string;
+  token: string;
+};
 
 export type SupabaseCommentMediaUploadResult = {
   bucket: string;
@@ -54,6 +91,134 @@ function inferFileExtension(file: File) {
       return nameParts.length > 1 ? sanitizeFileName(nameParts.pop() ?? "") || "bin" : "bin";
     }
   }
+}
+
+function getRuntimeWindow() {
+  return window as StorageRuntimeWindow;
+}
+
+function getErrorMessage(error: unknown) {
+  if (typeof error === "object" && error !== null && "message" in error) {
+    const value = (error as { message?: unknown }).message;
+    return typeof value === "string" ? value : "";
+  }
+
+  return error instanceof Error ? error.message : "";
+}
+
+function isStorageRlsError(error: unknown) {
+  const message = getErrorMessage(error).toLowerCase();
+
+  return (
+    message.includes("row-level security") ||
+    message.includes("violates row-level security policy") ||
+    message.includes("new row violates")
+  );
+}
+
+async function getFirebaseBridgeAuthToken() {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  try {
+    return (await getRuntimeWindow().sakuraFirebaseAuth?.getAuthToken?.()) ?? null;
+  } catch {
+    return null;
+  }
+}
+
+async function callFirebaseSyncBridge<T>(body: Record<string, unknown>): Promise<T> {
+  if (!supabaseSyncFunctionUrl) {
+    throw new Error("Supabase sync function URL is not configured for this build.");
+  }
+
+  const authToken = await getFirebaseBridgeAuthToken();
+
+  if (!authToken) {
+    throw new Error("Supabase Storage bridge requires an active Firebase session.");
+  }
+
+  const response = await fetch(supabaseSyncFunctionUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
+    },
+    body: JSON.stringify(body),
+  });
+
+  const payload = (await response.json().catch(() => null)) as
+    | ({ error?: string } & T)
+    | null;
+
+  if (!response.ok) {
+    throw new Error(payload?.error || `Supabase sync function returned ${response.status}.`);
+  }
+
+  return (payload ?? {}) as T;
+}
+
+async function createSignedUploadTarget(
+  bucket: string,
+  objectPath: string
+): Promise<SignedUploadPayload> {
+  return callFirebaseSyncBridge<SignedUploadPayload>({
+    action: "create_signed_upload_url",
+    bucket,
+    objectPath,
+  });
+}
+
+async function deleteStorageObjectViaBridge(bucket: string, objectPath: string) {
+  await callFirebaseSyncBridge<{ ok: true }>({
+    action: "delete_storage_object",
+    bucket,
+    objectPath,
+  });
+}
+
+async function uploadStorageObjectViaBridge(
+  file: File,
+  objectPath: string
+): Promise<SupabaseCommentMediaUploadResult> {
+  if (!isSupabaseConfigured || !supabase) {
+    throw new Error("Supabase is not configured for this build.");
+  }
+
+  const signedUpload = await createSignedUploadTarget(supabaseCommentMediaBucket, objectPath);
+  const uploadPath =
+    typeof signedUpload.path === "string" && signedUpload.path ? signedUpload.path : objectPath;
+  const uploadToken =
+    typeof signedUpload.token === "string" && signedUpload.token ? signedUpload.token : "";
+
+  if (!uploadToken) {
+    throw new Error("Supabase Storage bridge did not return an upload token.");
+  }
+
+  const { error } = await supabase.storage
+    .from(supabaseCommentMediaBucket)
+    .uploadToSignedUrl(uploadPath, uploadToken, file, {
+      cacheControl: "3600",
+      contentType: file.type,
+    });
+
+  if (error) {
+    throw error;
+  }
+
+  const {
+    data: { publicUrl },
+  } = supabase.storage.from(supabaseCommentMediaBucket).getPublicUrl(uploadPath);
+
+  return {
+    bucket: supabaseCommentMediaBucket,
+    path: uploadPath,
+    publicUrl,
+    contentType: file.type,
+    size: file.size,
+    reused: false,
+  };
 }
 
 async function buildObjectPath(file: File, folder: string, userId = "guest") {
@@ -101,6 +266,10 @@ async function uploadStorageObject(file: File, objectPath: string): Promise<Supa
     });
 
   if (error) {
+    if (isStorageRlsError(error)) {
+      return uploadStorageObjectViaBridge(file, objectPath);
+    }
+
     throw error;
   }
 
@@ -155,6 +324,11 @@ export async function deleteSupabaseStorageObject(objectPath: string) {
     .remove([normalizedObjectPath]);
 
   if (error) {
+    if (isStorageRlsError(error)) {
+      await deleteStorageObjectViaBridge(supabaseCommentMediaBucket, normalizedObjectPath);
+      return;
+    }
+
     throw error;
   }
 }
