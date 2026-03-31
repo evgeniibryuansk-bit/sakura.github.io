@@ -39,19 +39,10 @@ export const isVideoAvatarSource = (value: string | null | undefined) => {
 };
 
 const ANIMATED_DATA_URL_PATTERN = /^data:(image\/gif|image\/webp|video\/(?:mp4|webm))/i;
-const ANIMATED_IMAGE_DATA_URL_PATTERN = /^data:(image\/gif|image\/webp)/i;
-
 const isAnimatedAvatarSource = (value: string | null | undefined) =>
   typeof value === "string" &&
   (
     ANIMATED_DATA_URL_PATTERN.test(value.trim()) ||
-    /\.((gif)|(webp))(?:$|[?#])/i.test(value.trim())
-  );
-
-const isAnimatedImageAvatarSource = (value: string | null | undefined) =>
-  typeof value === "string" &&
-  (
-    ANIMATED_IMAGE_DATA_URL_PATTERN.test(value.trim()) ||
     /\.((gif)|(webp))(?:$|[?#])/i.test(value.trim())
   );
 
@@ -118,19 +109,18 @@ export function AvatarMedia({
   const [resolvedSrc, setResolvedSrc] = useState(src);
   const [renderKey, setRenderKey] = useState(0);
   const [hasLoadError, setHasLoadError] = useState(false);
+  const [isLoaded, setIsLoaded] = useState(false);
 
   useEffect(() => {
     let objectUrl: string | null = null;
-    let animationFrameId = 0;
     setHasLoadError(false);
+    setIsLoaded(false);
 
     if (!isAnimatedAvatarSource(src)) {
       setResolvedSrc(src);
       setRenderKey((currentKey) => currentKey + 1);
       return;
     }
-
-    setResolvedSrc("");
 
     try {
       objectUrl = ANIMATED_DATA_URL_PATTERN.test(src.trim())
@@ -140,16 +130,10 @@ export function AvatarMedia({
       objectUrl = src;
     }
 
-    animationFrameId = window.requestAnimationFrame(() => {
-      setResolvedSrc(objectUrl ?? src);
-      setRenderKey((currentKey) => currentKey + 1);
-    });
+    setResolvedSrc(objectUrl ?? src);
+    setRenderKey((currentKey) => currentKey + 1);
 
     return () => {
-      if (animationFrameId) {
-        window.cancelAnimationFrame(animationFrameId);
-      }
-
       if (objectUrl) {
         URL.revokeObjectURL(objectUrl);
       }
@@ -172,60 +156,73 @@ export function AvatarMedia({
 
   if (isVideoAvatarSource(resolvedSrc)) {
     return (
-      <video
-        key={`${renderKey}:${resolvedSrc}`}
-        src={resolvedSrc}
-        aria-label={alt}
-        title={alt}
-        autoPlay
-        loop
-        muted
-        playsInline
-        preload="metadata"
-        disablePictureInPicture
-        className={className}
-        style={style}
-        onError={() => {
-          setHasLoadError(true);
-        }}
-      />
-    );
-  }
-
-  if (isAnimatedImageAvatarSource(resolvedSrc)) {
-    return (
       <span
-        key={`${renderKey}:${resolvedSrc}`}
         role="img"
         aria-label={alt}
         title={alt}
-        className={className}
-        style={{
-          ...style,
-          display: "block",
-          backgroundImage: `url("${resolvedSrc}")`,
-          backgroundSize: "cover",
-          backgroundPosition: "center",
-          backgroundRepeat: "no-repeat",
-        }}
-      />
+        className={`${className} relative isolate overflow-hidden bg-[#171012]`}
+        style={style}
+      >
+        <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black uppercase text-[#ffb7c5]">
+          {initialsFromLabel(alt)}
+        </span>
+        <video
+          key={`${renderKey}:${resolvedSrc}`}
+          src={resolvedSrc}
+          aria-label={alt}
+          title={alt}
+          autoPlay
+          loop
+          muted
+          playsInline
+          preload="auto"
+          disablePictureInPicture
+          className={`absolute inset-0 h-full w-full object-cover transition duration-200 ${
+            isLoaded ? "opacity-100" : "opacity-0"
+          }`}
+          onLoadedData={() => {
+            setIsLoaded(true);
+          }}
+          onCanPlay={() => {
+            setIsLoaded(true);
+          }}
+          onError={() => {
+            setHasLoadError(true);
+          }}
+        />
+      </span>
     );
   }
 
   return (
-    <img
-      key={`${renderKey}:${resolvedSrc}`}
-      src={resolvedSrc}
-      alt=""
+    <span
+      role="img"
       aria-label={alt}
       title={alt}
-      loading={loading}
-      decoding={isAnimatedAvatarSource(resolvedSrc) ? undefined : decoding}
-      className={className}
+      className={`${className} relative isolate overflow-hidden bg-[#171012]`}
       style={style}
-      onError={() => {
-        setHasLoadError(true);
-      }}
-    />
+    >
+      <span className="absolute inset-0 flex items-center justify-center text-[11px] font-black uppercase text-[#ffb7c5]">
+        {initialsFromLabel(alt)}
+      </span>
+      <img
+        key={`${renderKey}:${resolvedSrc}`}
+        src={resolvedSrc}
+        alt=""
+        aria-label={alt}
+        title={alt}
+        loading={loading}
+        decoding={isAnimatedAvatarSource(resolvedSrc) ? undefined : decoding}
+        className={`absolute inset-0 h-full w-full object-cover transition duration-200 ${
+          isLoaded ? "opacity-100" : "opacity-0"
+        }`}
+        onLoad={() => {
+          setIsLoaded(true);
+        }}
+        onError={() => {
+          setHasLoadError(true);
+        }}
+      />
+    </span>
   );
 }
