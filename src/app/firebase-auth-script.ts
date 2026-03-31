@@ -1767,13 +1767,26 @@
           canManageRoles(actorSnapshot.roles ?? [])
         )
     );
+  const waitForAuthStateSettlementEarly = () =>
+    window.sakuraAuthStateSettled
+      ? Promise.resolve()
+      : new Promise((resolve) => {
+          const finish = () => {
+            window.clearTimeout(timeoutId);
+            window.removeEventListener(AUTH_STATE_SETTLED_EVENT, finish);
+            resolve();
+          };
+
+          const timeoutId = window.setTimeout(finish, 1500);
+          window.addEventListener(AUTH_STATE_SETTLED_EVENT, finish, { once: true });
+        });
 
   const enrichProfileSnapshotWithPrivateFields = async (profileId, snapshot) => {
     if (!snapshot || snapshot.isAnonymous || !Number.isInteger(profileId) || profileId <= 0) {
       return snapshot;
     }
 
-    await waitForAuthStateSettlement();
+    await waitForAuthStateSettlementEarly();
 
     let actorSnapshot = window.sakuraCurrentUserSnapshot;
 
