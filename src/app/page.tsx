@@ -492,6 +492,7 @@ function isEmailVerificationLocked(user: AuthUserSnapshot | null | undefined) {
     user &&
       !user.isAnonymous &&
       user.email &&
+      !user.providerIds.includes("google.com") &&
       user.emailVerified === false &&
       user.verificationRequired !== false
   );

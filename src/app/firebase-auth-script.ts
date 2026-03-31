@@ -858,6 +858,41 @@
       const normalizedRole = normalizeRoleName(role);
       return normalizedRole && normalizedRole !== "user";
     });
+  const normalizeProviderIdsList = (providerIds) =>
+    Array.isArray(providerIds)
+      ? providerIds
+          .filter((providerId) => typeof providerId === "string")
+          .map((providerId) => providerId.trim())
+          .filter(Boolean)
+      : [];
+  const isGoogleProviderId = (providerId) =>
+    typeof providerId === "string" &&
+    (providerId.trim() === "google.com" || providerId.trim() === "google");
+  const hasTrustedEmailProvider = (providerIds) =>
+    normalizeProviderIdsList(providerIds).some((providerId) => isGoogleProviderId(providerId));
+  const resolveEmailVerifiedState = (user, details = {}) => {
+    const providerIds =
+      Array.isArray(details.providerIds) && details.providerIds.length
+        ? details.providerIds
+        : getProviderIds(user);
+    const baseEmailVerified =
+      typeof details.emailVerified === "boolean"
+        ? details.emailVerified
+        : Boolean(user?.emailVerified);
+
+    return baseEmailVerified || hasTrustedEmailProvider(providerIds);
+  };
+  const resolveVerificationRequired = (roles, providerIds, explicitValue) => {
+    if (hasTrustedEmailProvider(providerIds)) {
+      return false;
+    }
+
+    if (typeof explicitValue === "boolean") {
+      return explicitValue;
+    }
+
+    return requiresEmailVerification(roles);
+  };
   const ensureAvatarUploadAllowedForRoles = (avatarType, roles) => {
     if (!PREMIUM_AVATAR_CONTENT_TYPES.has(avatarType ?? "")) {
       return;
@@ -1133,6 +1168,8 @@
         : null;
     const fallbackLogin = sanitizeLogin(requestedLogin) || null;
 
+    const providerIds = getProviderIds(user);
+
       return {
         login: fallbackLogin,
         loginLower: fallbackLogin ? normalizeLogin(fallbackLogin) : null,
@@ -1142,10 +1179,10 @@
           fallbackLogin ??
           user.email?.split("@")[0] ??
           null,
-        emailVerified: Boolean(user.emailVerified),
+        emailVerified: resolveEmailVerifiedState(user, { providerIds }),
         profileId: null,
         photoURL: null,
-        providerIds: getProviderIds(user),
+        providerIds,
         roles: ["user"],
         isBanned: false,
         bannedAt: null,
@@ -1163,21 +1200,23 @@
     login: details.login ?? null,
     loginLower: details.loginLower ?? null,
     displayName: details.displayName ?? user.displayName ?? details.login ?? null,
-    emailVerified:
-      typeof details.emailVerified === "boolean" ? details.emailVerified : Boolean(user.emailVerified),
+    emailVerified: resolveEmailVerifiedState(user, details),
     profileId: typeof details.profileId === "number" ? details.profileId : null,
     photoURL: resolvePhotoURL(details, null),
     avatarPath: resolveAvatarPath(details, null),
     avatarType: resolveAvatarType(details, null),
     avatarSize: resolveAvatarSize(details, null),
-    providerIds: Array.isArray(details.providerIds) ? details.providerIds : getProviderIds(user),
+    providerIds: normalizeProviderIdsList(
+      Array.isArray(details.providerIds) ? details.providerIds : getProviderIds(user)
+    ),
     roles: normalizeRoles(details.roles),
     isBanned: details.isBanned === true,
     bannedAt: resolveBannedAt(details),
-    verificationRequired:
-      typeof details.verificationRequired === "boolean"
-        ? details.verificationRequired
-        : requiresEmailVerification(details.roles),
+    verificationRequired: resolveVerificationRequired(
+      details.roles,
+      Array.isArray(details.providerIds) ? details.providerIds : getProviderIds(user),
+      details.verificationRequired
+    ),
     loginHistory: Array.isArray(details.loginHistory)
       ? details.loginHistory
       : buildLoginHistory([], user.metadata.creationTime ?? null, user.metadata.lastSignInTime ?? null),
@@ -1191,8 +1230,7 @@
           uid: user.uid,
           isAnonymous: Boolean(user.isAnonymous),
           email: user.email ?? null,
-          emailVerified:
-            typeof details.emailVerified === "boolean" ? details.emailVerified : Boolean(user.emailVerified),
+          emailVerified: resolveEmailVerifiedState(user, details),
           login: details.login ?? null,
           displayName: details.displayName ?? user.displayName ?? details.login ?? null,
           profileId: typeof details.profileId === "number" ? details.profileId : null,
@@ -1203,14 +1241,14 @@
           roles: normalizeRoles(details.roles),
           isBanned: details.isBanned === true,
           bannedAt: resolveBannedAt(details),
-          verificationRequired:
-            typeof details.verificationRequired === "boolean"
-              ? details.verificationRequired
-              : requiresEmailVerification(details.roles),
-          providerIds:
-            user.providerData.map((provider) => provider?.providerId).filter(Boolean) ??
-            details.providerIds ??
-            [],
+          verificationRequired: resolveVerificationRequired(
+            details.roles,
+            Array.isArray(details.providerIds) ? details.providerIds : getProviderIds(user),
+            details.verificationRequired
+          ),
+          providerIds: normalizeProviderIdsList(
+            Array.isArray(details.providerIds) ? details.providerIds : getProviderIds(user)
+          ),
           creationTime: user.metadata.creationTime ?? null,
           lastSignInTime: user.metadata.lastSignInTime ?? null,
           loginHistory: Array.isArray(details.loginHistory) ? details.loginHistory : [],
@@ -1239,13 +1277,12 @@
     roles: normalizeRoles(details.roles),
     isBanned: details.isBanned === true,
     bannedAt: resolveBannedAt(details),
-    verificationRequired:
-      typeof details.verificationRequired === "boolean"
-        ? details.verificationRequired
-        : requiresEmailVerification(details.roles),
-    providerIds: Array.isArray(details.providerIds)
-      ? details.providerIds.filter((providerId) => typeof providerId === "string")
-      : [],
+    verificationRequired: resolveVerificationRequired(
+      details.roles,
+      Array.isArray(details.providerIds) ? details.providerIds : [],
+      details.verificationRequired
+    ),
+    providerIds: normalizeProviderIdsList(details.providerIds),
     creationTime: typeof details.creationTime === "string" ? details.creationTime : null,
     lastSignInTime: typeof details.lastSignInTime === "string" ? details.lastSignInTime : null,
     loginHistory: Array.isArray(details.loginHistory)
@@ -2102,6 +2139,7 @@
         snapshot &&
           !snapshot.isAnonymous &&
           snapshot.email &&
+          !hasTrustedEmailProvider(snapshot.providerIds) &&
           snapshot.emailVerified === false &&
           snapshot.verificationRequired !== false
       );
@@ -2540,11 +2578,14 @@
         typeof existingData?.verificationEmailSent === "boolean"
           ? existingData.verificationEmailSent
           : null;
+      const resolvedEmailVerified =
+        storedEmailVerified !== null
+          ? storedEmailVerified || hasTrustedEmailProvider(providerIds)
+          : resolveEmailVerifiedState(user, { providerIds });
       const profilePayload = {
         uid: user.uid,
         email: user.email ?? null,
-        emailVerified:
-          storedEmailVerified !== null ? storedEmailVerified : Boolean(user.emailVerified),
+        emailVerified: resolvedEmailVerified,
         login: loginDetails.login,
         loginLower: loginDetails.loginLower,
         displayName:
@@ -2559,10 +2600,11 @@
         roles,
         isBanned: existingData?.isBanned === true,
         bannedAt: resolveBannedAt(existingData),
-        verificationRequired:
-          storedVerificationRequired !== null
-            ? storedVerificationRequired
-            : requiresEmailVerification(roles),
+        verificationRequired: resolveVerificationRequired(
+          roles,
+          providerIds,
+          storedVerificationRequired
+        ),
         verificationEmailSent:
           storedVerificationEmailSent !== null ? storedVerificationEmailSent : false,
         providerIds,
@@ -4289,14 +4331,22 @@
       }
 
       const currentRoles = normalizeRoles(window.sakuraCurrentUserSnapshot?.roles ?? []);
+      const currentProviderIds = normalizeProviderIdsList(
+        window.sakuraCurrentUserSnapshot?.providerIds ?? getProviderIds(user)
+      );
 
-      if (!requiresEmailVerification(currentRoles)) {
+      if (
+        !requiresEmailVerification(currentRoles) ||
+        hasTrustedEmailProvider(currentProviderIds)
+      ) {
         const snapshot = publishUserSnapshot(
           toUserSnapshot(user, {
             ...(window.sakuraCurrentUserSnapshot ?? {}),
             roles: currentRoles,
+            emailVerified: true,
             verificationRequired: false,
             verificationEmailSent: false,
+            providerIds: currentProviderIds,
           })
         );
 
@@ -4348,7 +4398,27 @@
 
       await reload(user);
 
-      if (user.emailVerified) {
+      const currentProviderIds = normalizeProviderIdsList(
+        window.sakuraCurrentUserSnapshot?.providerIds ?? getProviderIds(user)
+      );
+
+      if (hasTrustedEmailProvider(currentProviderIds)) {
+        try {
+          await setDoc(
+            userRefFor(user.uid),
+            {
+              emailVerified: true,
+              verificationRequired: false,
+              verificationEmailSent: false,
+              providerIds: currentProviderIds,
+              updatedAt: new Date().toISOString(),
+            },
+            { merge: true }
+          );
+        } catch (error) {}
+      }
+
+      if (user.emailVerified || hasTrustedEmailProvider(currentProviderIds)) {
         try {
           await setDoc(
             userRefFor(user.uid),

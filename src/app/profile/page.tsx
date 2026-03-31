@@ -391,6 +391,7 @@ const isEmailVerificationLockedForProfile = (user: UserProfile | null | undefine
     user &&
       !user.isAnonymous &&
       user.email &&
+      !user.providerIds.includes("google.com") &&
       user.emailVerified === false &&
       user.verificationRequired !== false
   );
@@ -1573,6 +1574,7 @@ export default function ProfilePage() {
     isOwner &&
       !activeProfile?.isBanned &&
       activeProfile?.email &&
+      !activeProfile.providerIds.includes("google.com") &&
       activeProfile.emailVerified === false &&
       activeProfile.verificationRequired !== false
   );
@@ -1593,7 +1595,9 @@ export default function ProfilePage() {
     ? "no-email"
     : activeProfile.emailVerified === true
       ? "verified"
-      : activeProfile.emailVerified === false && activeProfile.verificationRequired !== false
+      : activeProfile.emailVerified === false &&
+          activeProfile.verificationRequired !== false &&
+          !activeProfile.providerIds.includes("google.com")
         ? "locked"
         : "unknown";
   const isTargetVerificationLocked = targetVerificationStatus === "locked";
