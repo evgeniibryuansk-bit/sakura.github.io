@@ -45,6 +45,9 @@ type ActorProfile = {
   roles: string[];
   authUserId: string | null;
   email: string | null;
+  emailVerified?: boolean | null;
+  verificationRequired?: boolean | null;
+  providerIds?: string[];
   displayName: string | null;
   avatarPath: string | null;
 };
@@ -237,6 +240,10 @@ const loadActorProfile = async (firebaseUid: string): Promise<ActorProfile> => {
     roles: normalizeRoles(data?.roles),
     authUserId: normalizeString(data?.auth_user_id, 128),
     email: normalizeString(data?.email, 320),
+    emailVerified: typeof data?.email_verified === "boolean" ? data.email_verified : null,
+    verificationRequired:
+      typeof data?.verification_required === "boolean" ? data.verification_required : null,
+    providerIds: normalizeRoles(data?.provider_ids),
     displayName: normalizeString(data?.display_name, 96),
     avatarPath: normalizeStorageObjectPath(data?.avatar_path),
   };
@@ -262,6 +269,10 @@ const loadProfileByProfileId = async (profileId: number): Promise<ActorProfile |
     roles: normalizeRoles(data.roles),
     authUserId: normalizeString(data.auth_user_id, 128),
     email: normalizeString(data.email, 320),
+    emailVerified: typeof data.email_verified === "boolean" ? data.email_verified : null,
+    verificationRequired:
+      typeof data.verification_required === "boolean" ? data.verification_required : null,
+    providerIds: normalizeRoles(data.provider_ids),
     displayName: normalizeString(data.display_name, 96),
     avatarPath: normalizeStorageObjectPath(data.avatar_path),
   };
@@ -854,6 +865,48 @@ const handleAdminDeleteProfileAccountData = async (
     deletedFirebaseUid: targetProfile.firebaseUid ?? null,
   });
 };
+const handleGetPrivateProfileFields = async (
+  actor: { uid: string; email: string | null },
+  body: JsonRecord,
+) => {
+  const actorProfile = await loadActorProfile(actor.uid);
+  const targetProfileId = normalizeInteger(body.profileId);
+
+  if (!targetProfileId || targetProfileId <= 0) {
+    return json({ error: "Target profile id is required." }, 400);
+  }
+
+  const targetProfile = await loadProfileByProfileId(targetProfileId);
+
+  if (!targetProfile) {
+    return json({
+      ok: true,
+      action: "get_private_profile_fields",
+      profileId: targetProfileId,
+      fields: null,
+    });
+  }
+
+  if (actorProfile.profileId !== targetProfileId) {
+    if (!canManageRoles(actorProfile.roles)) {
+      return json({ error: "Only the owner or a manager can read private profile fields." }, 403);
+    }
+
+    ensureActorCanManageTargetProfile(actorProfile.roles, targetProfile.roles);
+  }
+
+  return json({
+    ok: true,
+    action: "get_private_profile_fields",
+    profileId: targetProfile.profileId,
+    fields: {
+      email: targetProfile.email,
+      emailVerified: targetProfile.emailVerified ?? null,
+      verificationRequired: targetProfile.verificationRequired ?? null,
+      providerIds: Array.isArray(targetProfile.providerIds) ? targetProfile.providerIds : [],
+    },
+  });
+};
 
 const handlePresenceUpsert = async (firebaseUid: string, body: JsonRecord) => {
   const presence = body.presence;
@@ -1097,6 +1150,8 @@ Deno.serve(async (request) => {
         return await handleDeleteProfileAccountData(actor);
       case "admin_delete_profile_account_data":
         return await handleAdminDeleteProfileAccountData(actor, body);
+      case "get_private_profile_fields":
+        return await handleGetPrivateProfileFields(actor, body);
       case "upsert_presence":
         return await handlePresenceUpsert(actor.uid, body);
       case "upsert_comment":

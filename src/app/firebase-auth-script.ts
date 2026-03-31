@@ -1643,6 +1643,36 @@
       throw createFirebaseError(errorCode, message);
     }
   };
+  const loadPrivateProfileFieldsFromSupabaseSync = async (user, profileId) => {
+    if (!user || user.isAnonymous || !Number.isInteger(profileId) || profileId <= 0) {
+      return null;
+    }
+
+    const response = await requestSupabaseSyncActionOrThrow(
+      user,
+      "get_private_profile_fields",
+      { profileId },
+      "profile/private-fields-unavailable",
+      "Private profile fields could not be loaded."
+    );
+    const fields =
+      response && typeof response.fields === "object" && response.fields ? response.fields : null;
+
+    if (!fields) {
+      return null;
+    }
+
+    return {
+      email: typeof fields.email === "string" && fields.email.trim() ? fields.email.trim() : null,
+      emailVerified:
+        typeof fields.emailVerified === "boolean" ? fields.emailVerified : null,
+      verificationRequired:
+        typeof fields.verificationRequired === "boolean"
+          ? fields.verificationRequired
+          : null,
+      providerIds: normalizeProviderIdsList(fields.providerIds),
+    };
+  };
 
   const syncSupabaseProfileRecord = async (user, snapshot) => {
     if (
@@ -2610,6 +2640,34 @@
             canManageRoles(actorSnapshot.roles ?? [])
           )
       );
+    const mergePrivateProfileFieldsIntoSnapshot = (snapshot, privateFields) => {
+      if (!snapshot || !privateFields || typeof privateFields !== "object") {
+        return snapshot;
+      }
+
+      return toStoredUserSnapshot(snapshot.uid, {
+        ...stripNullishFields(snapshot),
+        email:
+          snapshot.email ??
+          (typeof privateFields.email === "string" ? privateFields.email : null),
+        emailVerified:
+          typeof snapshot.emailVerified === "boolean"
+            ? snapshot.emailVerified
+            : typeof privateFields.emailVerified === "boolean"
+              ? privateFields.emailVerified
+              : null,
+        verificationRequired:
+          typeof snapshot.verificationRequired === "boolean"
+            ? snapshot.verificationRequired
+            : typeof privateFields.verificationRequired === "boolean"
+              ? privateFields.verificationRequired
+              : null,
+        providerIds:
+          Array.isArray(snapshot.providerIds) && snapshot.providerIds.length
+            ? snapshot.providerIds
+            : normalizeProviderIdsList(privateFields.providerIds),
+      });
+    };
     const enrichProfileSnapshotWithPrivateFields = async (profileId, snapshot) => {
       if (!snapshot || snapshot.isAnonymous || !Number.isInteger(profileId) || profileId <= 0) {
         return snapshot;
@@ -2634,46 +2692,72 @@
         return snapshot;
       }
 
+      let enrichedSnapshot = snapshot;
+
       try {
         const privateProfileDoc = await findUserByProfileId(profileId);
 
-        if (!privateProfileDoc) {
-          return snapshot;
+        if (privateProfileDoc) {
+          const privateProfileData = privateProfileDoc.data() ?? {};
+
+          enrichedSnapshot = toStoredUserSnapshot(privateProfileDoc.id, {
+            ...privateProfileData,
+            ...stripNullishFields(snapshot),
+            email:
+              snapshot.email ??
+              (typeof privateProfileData.email === "string" ? privateProfileData.email : null),
+            emailVerified:
+              typeof snapshot.emailVerified === "boolean"
+                ? snapshot.emailVerified
+                : privateProfileData.emailVerified,
+            verificationRequired:
+              typeof snapshot.verificationRequired === "boolean"
+                ? snapshot.verificationRequired
+                : privateProfileData.verificationRequired,
+            providerIds:
+              Array.isArray(snapshot.providerIds) && snapshot.providerIds.length
+                ? snapshot.providerIds
+                : privateProfileData.providerIds,
+            loginHistory:
+              Array.isArray(snapshot.loginHistory) && snapshot.loginHistory.length
+                ? snapshot.loginHistory
+                : privateProfileData.loginHistory,
+            visitHistory:
+              Array.isArray(snapshot.visitHistory) && snapshot.visitHistory.length
+                ? snapshot.visitHistory
+                : privateProfileData.visitHistory,
+            presence: snapshot.presence ?? privateProfileData.presence ?? null,
+          });
         }
-
-        const privateProfileData = privateProfileDoc.data() ?? {};
-
-        return toStoredUserSnapshot(privateProfileDoc.id, {
-          ...privateProfileData,
-          ...stripNullishFields(snapshot),
-          email:
-            snapshot.email ??
-            (typeof privateProfileData.email === "string" ? privateProfileData.email : null),
-          emailVerified:
-            typeof snapshot.emailVerified === "boolean"
-              ? snapshot.emailVerified
-              : privateProfileData.emailVerified,
-          verificationRequired:
-            typeof snapshot.verificationRequired === "boolean"
-              ? snapshot.verificationRequired
-              : privateProfileData.verificationRequired,
-          providerIds:
-            Array.isArray(snapshot.providerIds) && snapshot.providerIds.length
-              ? snapshot.providerIds
-              : privateProfileData.providerIds,
-          loginHistory:
-            Array.isArray(snapshot.loginHistory) && snapshot.loginHistory.length
-              ? snapshot.loginHistory
-              : privateProfileData.loginHistory,
-          visitHistory:
-            Array.isArray(snapshot.visitHistory) && snapshot.visitHistory.length
-              ? snapshot.visitHistory
-              : privateProfileData.visitHistory,
-          presence: snapshot.presence ?? privateProfileData.presence ?? null,
-        });
       } catch (error) {
-        return snapshot;
       }
+
+      const needsSupabasePrivateFields =
+        !enrichedSnapshot.email ||
+        !normalizeProviderIdsList(enrichedSnapshot.providerIds).length ||
+        typeof enrichedSnapshot.emailVerified !== "boolean" ||
+        typeof enrichedSnapshot.verificationRequired !== "boolean";
+
+      if (!needsSupabasePrivateFields || !auth.currentUser || auth.currentUser.isAnonymous) {
+        return enrichedSnapshot;
+      }
+
+      try {
+        const privateFields = await loadPrivateProfileFieldsFromSupabaseSync(
+          auth.currentUser,
+          profileId
+        );
+
+        if (privateFields) {
+          enrichedSnapshot = mergePrivateProfileFieldsIntoSnapshot(
+            enrichedSnapshot,
+            privateFields
+          );
+        }
+      } catch (error) {
+      }
+
+      return enrichedSnapshot;
     };
     const uploadAvatarToStorage = async (uid, file) => {
       const extension = getAvatarStorageExtension(file);
