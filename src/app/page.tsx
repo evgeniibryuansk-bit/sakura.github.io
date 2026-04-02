@@ -4,7 +4,7 @@
 
 import Link from "next/link";
 import { LazyMotion, domAnimation, m } from "framer-motion";
-import { useEffect, useRef, useState, type CSSProperties } from "react";
+import { useEffect, useState, type CSSProperties } from "react";
 import { AvatarMedia } from "./avatar-media";
 import { HeaderSocialLinks } from "./header-social-links";
 import { SiteOnlineBadge } from "./site-online-badge";
@@ -599,57 +599,6 @@ function profileHref(profileId: number | null | undefined) {
   return profileBasePath;
 }
 
-function scrollToSection(sectionId: string) {
-  const target = document.getElementById(sectionId);
-
-  if (!target) {
-    return;
-  }
-
-  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
-    target.scrollIntoView({ behavior: "auto", block: "start" });
-    return;
-  }
-
-  const startY = window.scrollY;
-  const targetY = target.getBoundingClientRect().top + window.scrollY;
-  const distance = targetY - startY;
-  const duration = 1400;
-  const root = document.documentElement;
-  const body = document.body;
-  const previousHtmlBehavior = root.style.scrollBehavior;
-  const previousBodyBehavior = body.style.scrollBehavior;
-  let startTime: number | null = null;
-
-  root.style.scrollBehavior = "auto";
-  body.style.scrollBehavior = "auto";
-
-  const easeInOutCubic = (progress: number) =>
-    progress < 0.5 ? 4 * progress * progress * progress : 1 - Math.pow(-2 * progress + 2, 3) / 2;
-
-  const step = (timestamp: number) => {
-    if (startTime === null) {
-      startTime = timestamp;
-    }
-
-    const elapsed = timestamp - startTime;
-    const progress = Math.min(elapsed / duration, 1);
-    const easedProgress = easeInOutCubic(progress);
-
-    window.scrollTo(0, startY + distance * easedProgress);
-
-    if (progress < 1) {
-      window.requestAnimationFrame(step);
-      return;
-    }
-
-    root.style.scrollBehavior = previousHtmlBehavior;
-    body.style.scrollBehavior = previousBodyBehavior;
-  };
-
-  window.requestAnimationFrame(step);
-}
-
 function SakuraBackground() {
   /* const handleGoogleLogin = async () => {
     if (!window.sakuraFirebaseAuth) {
@@ -970,7 +919,7 @@ function HeaderAuth() {
   }, [pendingCallbackError, isVerificationLockedUser]);
 
   useEffect(() => {
-    if (!visibleUser || !requiresGoogleAccountCompletion(visibleUser)) {
+    if (!isGoogleSetupFlowActive || !visibleUser) {
       return;
     }
 
@@ -984,6 +933,8 @@ function HeaderAuth() {
     setPassword("");
     setConfirmPassword("");
   }, [
+    isGoogleSetupFlowActive,
+    visibleUser,
     visibleUser?.uid,
     visibleUser?.email,
     visibleUser?.login,
@@ -1103,7 +1054,7 @@ function HeaderAuth() {
         const refreshedSnapshot = await window.sakuraFirebaseAuth.refreshVerificationStatus();
         setCurrentUser(refreshedSnapshot);
         nextUser = refreshedSnapshot;
-      } catch (error) {}
+      } catch {}
     }
 
     if (isEmailVerificationLocked(nextUser)) {
@@ -1794,7 +1745,7 @@ export default function Home() {
           setSiteOnlineCount(nextCount);
           writeCachedSiteOnlineCount(nextCount);
         }
-      } catch (error) {
+      } catch {
       } finally {
         isRefreshing = false;
       }
@@ -1864,7 +1815,7 @@ export default function Home() {
       if (isEmailVerificationLocked(snapshot) && window.sakuraFirebaseAuth) {
         try {
           snapshot = await window.sakuraFirebaseAuth.refreshVerificationStatus();
-        } catch (error) {}
+        } catch {}
       }
 
       if (isEmailVerificationLocked(snapshot)) {
@@ -1999,490 +1950,6 @@ function FeatureBox({
       <h3 className="mb-4 font-mono text-[10px] uppercase tracking-[0.28em] text-[#ffb7c5]/70">{title}</h3>
       <p className="max-w-[40rem] text-sm leading-relaxed text-gray-300">{desc}</p>
     </m.div>
-  );
-}
-
-function BottomInfoSection() {
-  return (
-    <section className="grid grid-cols-1 gap-1 px-10 pt-0 pb-20 md:grid-cols-2">
-      <FeatureBox
-        delay={0.1}
-        title="Best free choice"
-        desc="Лучшее бесплатное решение для комфортной игры."
-      />
-      <FeatureBox
-        delay={0.2}
-        title="Temporary Testing Period"
-        desc="Успейте воспользоваться бесплатно данным решением и помочь в развитии проекта."
-      />
-    </section>
-  );
-}
-
-function LegacyFeatureShowcase() {
-  const [activeSlide, setActiveSlide] = useState(0);
-  const [previewSlide, setPreviewSlide] = useState<ShowcaseSlide | null>(null);
-  const [isPreviewZoomed, setIsPreviewZoomed] = useState(false);
-  const [isPreviewDragging, setIsPreviewDragging] = useState(false);
-  const [isCarouselDragging, setIsCarouselDragging] = useState(false);
-  const previewViewportRef = useRef<HTMLDivElement | null>(null);
-  const previewImageRef = useRef<HTMLImageElement | null>(null);
-  const previewZoomTargetRef = useRef<{ xRatio: number; yRatio: number } | null>(null);
-  const previewDragRef = useRef<{
-    startX: number;
-    startY: number;
-    scrollLeft: number;
-    scrollTop: number;
-    moved: boolean;
-  } | null>(null);
-  const carouselDragRef = useRef<{
-    startX: number;
-    startY: number;
-    moved: boolean;
-    swiped: boolean;
-  } | null>(null);
-  const suppressPreviewClickRef = useRef(false);
-  const suppressCarouselClickRef = useRef(false);
-  const slide = showcaseSlides[activeSlide];
-
-  const goToPrevious = () => {
-    setActiveSlide((current) => (current - 1 + showcaseSlides.length) % showcaseSlides.length);
-  };
-
-  const goToNext = () => {
-    setActiveSlide((current) => (current + 1) % showcaseSlides.length);
-  };
-
-  const openPreview = () => {
-    setPreviewSlide(slide);
-    setIsPreviewZoomed(false);
-    setIsPreviewDragging(false);
-  };
-
-  const closePreview = () => {
-    setPreviewSlide(null);
-    setIsPreviewZoomed(false);
-    setIsPreviewDragging(false);
-    previewDragRef.current = null;
-    previewZoomTargetRef.current = null;
-    suppressPreviewClickRef.current = false;
-  };
-
-  useEffect(() => {
-    if (previewSlide || isCarouselDragging) {
-      return;
-    }
-
-    const timerId = window.setTimeout(() => {
-      setActiveSlide((current) => (current + 1) % showcaseSlides.length);
-    }, 10000);
-
-    return () => window.clearTimeout(timerId);
-  }, [activeSlide, previewSlide, isCarouselDragging]);
-
-  useEffect(() => {
-    if (!previewSlide) {
-      return;
-    }
-
-    const previousOverflow = document.body.style.overflow;
-
-    document.body.style.overflow = "hidden";
-
-    const handleKeyDown = (event: KeyboardEvent) => {
-      if (event.key === "Escape") {
-        closePreview();
-      }
-    };
-
-    window.addEventListener("keydown", handleKeyDown);
-
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", handleKeyDown);
-    };
-  }, [previewSlide]);
-
-  useEffect(() => {
-    const viewport = previewViewportRef.current;
-
-    if (!viewport) {
-      return;
-    }
-
-    if (!isPreviewZoomed) {
-      viewport.scrollTo({ left: 0, top: 0 });
-      previewZoomTargetRef.current = null;
-      return;
-    }
-
-    let frameId = 0;
-    let settleFrameId = 0;
-    let settleTimeoutId = 0;
-
-    const applyZoomScroll = () => {
-      const maxScrollLeft = Math.max(0, viewport.scrollWidth - viewport.clientWidth);
-      const maxScrollTop = Math.max(0, viewport.scrollHeight - viewport.clientHeight);
-
-      if (previewZoomTargetRef.current) {
-        const targetScrollLeft =
-          viewport.scrollWidth * previewZoomTargetRef.current.xRatio - viewport.clientWidth / 2;
-        const targetScrollTop =
-          viewport.scrollHeight * previewZoomTargetRef.current.yRatio - viewport.clientHeight / 2;
-
-        viewport.scrollLeft = Math.min(maxScrollLeft, Math.max(0, targetScrollLeft));
-        viewport.scrollTop = Math.min(maxScrollTop, Math.max(0, targetScrollTop));
-      } else {
-        viewport.scrollLeft = maxScrollLeft / 2;
-        viewport.scrollTop = maxScrollTop / 2;
-      }
-
-      previewZoomTargetRef.current = null;
-    };
-
-    frameId = window.requestAnimationFrame(() => {
-      applyZoomScroll();
-      settleFrameId = window.requestAnimationFrame(applyZoomScroll);
-      settleTimeoutId = window.setTimeout(applyZoomScroll, 120);
-    });
-
-    return () => {
-      window.cancelAnimationFrame(frameId);
-      window.cancelAnimationFrame(settleFrameId);
-      window.clearTimeout(settleTimeoutId);
-    };
-  }, [isPreviewZoomed, previewSlide]);
-
-  const togglePreviewZoom = (event?: { clientX: number; clientY: number }) => {
-    if (suppressPreviewClickRef.current) {
-      suppressPreviewClickRef.current = false;
-      return;
-    }
-
-    if (!isPreviewZoomed && event && previewViewportRef.current) {
-      const rect =
-        previewImageRef.current?.getBoundingClientRect() ??
-        previewViewportRef.current.getBoundingClientRect();
-
-      previewZoomTargetRef.current = {
-        xRatio: Math.min(1, Math.max(0, (event.clientX - rect.left) / rect.width)),
-        yRatio: Math.min(1, Math.max(0, (event.clientY - rect.top) / rect.height)),
-      };
-    }
-
-    setIsPreviewZoomed((current) => !current);
-  };
-
-  const handlePreviewPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPreviewZoomed || !previewViewportRef.current) {
-      return;
-    }
-
-    event.currentTarget.setPointerCapture(event.pointerId);
-    previewDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      scrollLeft: previewViewportRef.current.scrollLeft,
-      scrollTop: previewViewportRef.current.scrollTop,
-      moved: false,
-    };
-    setIsPreviewDragging(true);
-  };
-
-  const handlePreviewPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!isPreviewZoomed || !previewViewportRef.current || !previewDragRef.current) {
-      return;
-    }
-
-    const deltaX = event.clientX - previewDragRef.current.startX;
-    const deltaY = event.clientY - previewDragRef.current.startY;
-
-    if (Math.abs(deltaX) > 3 || Math.abs(deltaY) > 3) {
-      previewDragRef.current.moved = true;
-    }
-
-    previewViewportRef.current.scrollLeft = previewDragRef.current.scrollLeft - deltaX;
-    previewViewportRef.current.scrollTop = previewDragRef.current.scrollTop - deltaY;
-  };
-
-  const finishPreviewDrag = () => {
-    if (!previewDragRef.current) {
-      return;
-    }
-
-    if (previewDragRef.current.moved) {
-      suppressPreviewClickRef.current = true;
-    }
-
-    previewDragRef.current = null;
-    setIsPreviewDragging(false);
-  };
-
-  const handleCarouselPointerDown = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (event.button !== 0) {
-      return;
-    }
-
-    event.currentTarget.setPointerCapture(event.pointerId);
-    carouselDragRef.current = {
-      startX: event.clientX,
-      startY: event.clientY,
-      moved: false,
-      swiped: false,
-    };
-    setIsCarouselDragging(true);
-  };
-
-  const handleCarouselPointerMove = (event: React.PointerEvent<HTMLButtonElement>) => {
-    if (!carouselDragRef.current) {
-      return;
-    }
-
-    const deltaX = event.clientX - carouselDragRef.current.startX;
-    const deltaY = event.clientY - carouselDragRef.current.startY;
-
-    if (Math.abs(deltaX) > 5 || Math.abs(deltaY) > 5) {
-      carouselDragRef.current.moved = true;
-    }
-
-    if (
-      !carouselDragRef.current.swiped &&
-      Math.abs(deltaX) > 70 &&
-      Math.abs(deltaX) > Math.abs(deltaY)
-    ) {
-      carouselDragRef.current.swiped = true;
-      suppressCarouselClickRef.current = true;
-
-      if (deltaX < 0) {
-        goToNext();
-      } else {
-        goToPrevious();
-      }
-    }
-  };
-
-  const finishCarouselDrag = () => {
-    if (!carouselDragRef.current) {
-      return;
-    }
-
-    if (carouselDragRef.current.moved) {
-      suppressCarouselClickRef.current = true;
-    }
-
-    carouselDragRef.current = null;
-    setIsCarouselDragging(false);
-  };
-
-  const handleCarouselClick = () => {
-    if (suppressCarouselClickRef.current) {
-      suppressCarouselClickRef.current = false;
-      return;
-    }
-
-    openPreview();
-  };
-
-  return (
-    <>
-      <section id="feature-showcase" className="border-t border-[#1a1a1a] px-10 py-24">
-        <div className="mx-auto max-w-6xl">
-        <div className="mb-12">
-          <p className="mb-4 font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
-            Feature Showcase
-          </p>
-          <h2 className="max-w-2xl text-4xl font-black uppercase tracking-tighter text-white">
-            Листай карточки
-          </h2>
-        </div>
-
-          <div className="grid items-stretch gap-8 lg:grid-cols-[0.85fr_1.15fr]">
-            <m.div
-              key={`copy-${slide.id}`}
-              initial={{ opacity: 0, y: 24 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.35 }}
-              className="flex min-h-[420px] flex-col justify-between rounded-[28px] border border-[#1a1a1a] bg-[#0d0d0d] p-8"
-            >
-              <div>
-                <span className="mb-6 inline-flex rounded-full border border-[#2b1b1e] bg-[#1a1012] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.35em] text-[#ffb7c5]">
-                  {slide.index}
-                </span>
-                <h3 className="mb-4 text-3xl font-black uppercase tracking-tighter text-white">
-                  {slide.title}
-                </h3>
-                <p className="max-w-md text-sm leading-relaxed text-gray-400">{slide.desc}</p>
-              </div>
-
-              <div className="rounded-[24px] border border-[#1a1a1a] bg-black/40 p-5">
-                <span className="mb-3 block font-mono text-[10px] uppercase tracking-[0.35em] text-gray-600">
-                  Preview
-                </span>
-                <p className="text-sm leading-relaxed text-gray-500">{slide.mediaCaption}</p>
-              </div>
-            </m.div>
-
-            <div className="relative flex items-center px-4 md:px-8">
-              <button
-                type="button"
-                onClick={goToPrevious}
-                aria-label="Предыдущая карточка"
-                className="absolute -left-2 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#0d0d0d] text-[#ffb7c5] shadow-[0_0_20px_rgba(255,183,197,0.08)] transition hover:border-[#ffb7c5]/50 hover:bg-[#1a1012] md:-left-6"
-              >
-                ←
-              </button>
-
-              <m.div
-                key={`media-${slide.id}`}
-                initial={{ opacity: 0, x: 18 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ duration: 0.35 }}
-                className="w-full"
-              >
-                <button
-                  type="button"
-                  onClick={handleCarouselClick}
-                  onPointerDown={handleCarouselPointerDown}
-                  onPointerMove={handleCarouselPointerMove}
-                  onPointerUp={finishCarouselDrag}
-                  onPointerCancel={finishCarouselDrag}
-                  onPointerLeave={finishCarouselDrag}
-                  className={`group relative block w-full overflow-hidden rounded-[32px] border border-[#1f1f1f] bg-black text-left ${
-                    isCarouselDragging ? "cursor-grabbing" : "cursor-grab"
-                  }`}
-                  aria-label={`Открыть ${slide.title} в полном размере`}
-                  style={{ touchAction: "pan-y" }}
-                >
-                  <div className="relative aspect-[16/9] overflow-hidden">
-                    <img
-                      src={slide.mediaSrc}
-                      alt={slide.title}
-                      draggable={false}
-                      loading="lazy"
-                      decoding="async"
-                      className="pointer-events-none absolute inset-0 h-full w-full select-none object-contain transition-transform duration-500 group-hover:scale-[1.01]"
-                    />
-                    <div className="absolute inset-x-0 top-0 h-28 bg-gradient-to-b from-black/65 via-black/25 to-transparent"></div>
-                    <div className="absolute inset-x-8 top-8 flex items-center justify-between">
-                      <span className="font-mono text-[10px] uppercase tracking-[0.35em] text-[#ffb7c5]">
-                        {slide.mediaOverlayTitle}
-                      </span>
-                      <span className="rounded-full border border-[#2b1b1e] bg-[#1a1012] px-3 py-1 font-mono text-[10px] uppercase tracking-[0.25em] text-gray-400">
-                        click to open
-                      </span>
-                    </div>
-                  </div>
-                </button>
-
-                <div className="mt-6 flex items-center justify-center gap-3">
-                  {showcaseSlides.map((item, index) => (
-                    <button
-                      key={item.id}
-                      type="button"
-                      aria-label={`Перейти к карточке ${index + 1}`}
-                      onClick={() => setActiveSlide(index)}
-                      className={`h-2.5 rounded-full transition-all ${
-                        index === activeSlide ? "w-8 bg-[#ffb7c5]" : "w-2.5 bg-white/20 hover:bg-white/40"
-                      }`}
-                    />
-                  ))}
-                </div>
-              </m.div>
-
-              <button
-                type="button"
-                onClick={goToNext}
-                aria-label="Следующая карточка"
-                className="absolute -right-2 z-10 flex h-12 w-12 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#0d0d0d] text-[#ffb7c5] shadow-[0_0_20px_rgba(255,183,197,0.08)] transition hover:border-[#ffb7c5]/50 hover:bg-[#1a1012] md:-right-6"
-              >
-                →
-              </button>
-            </div>
-          </div>
-        </div>
-      </section>
-
-      {previewSlide ? (
-        <div
-          className="fixed inset-0 z-[70] flex items-center justify-center bg-black/90 px-4 py-6 backdrop-blur-sm"
-          onClick={closePreview}
-        >
-          <div
-            className="w-full max-w-[min(96vw,1700px)]"
-            onClick={(event) => event.stopPropagation()}
-          >
-            <div className="mb-4 flex items-center justify-between gap-4">
-              <div>
-                <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">
-                  Full Preview
-                </p>
-                <h3 className="text-2xl font-black uppercase tracking-tighter text-white">
-                  {previewSlide.title}
-                </h3>
-              </div>
-              <div className="text-right">
-                <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.35em] text-gray-500">
-                  Click image to zoom
-                </p>
-                <button
-                  type="button"
-                  onClick={closePreview}
-                  className="rounded-full border border-[#2b1b1e] bg-[#1a1012] px-4 py-2 font-mono text-[10px] uppercase tracking-[0.25em] text-[#ffb7c5] transition hover:bg-[#241417]"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-            <div
-              ref={previewViewportRef}
-              className="max-h-[82vh] overflow-auto rounded-[28px] border border-[#1f1f1f] bg-[#050505] shadow-[0_30px_100px_rgba(0,0,0,0.55)]"
-            >
-              <div
-                role="button"
-                tabIndex={0}
-                onClick={(event) => togglePreviewZoom(event)}
-                onDragStart={(event) => event.preventDefault()}
-                onKeyDown={(event) => {
-                  if (event.key === "Enter" || event.key === " ") {
-                    event.preventDefault();
-                    togglePreviewZoom();
-                  }
-                }}
-                onPointerDown={handlePreviewPointerDown}
-                onPointerMove={handlePreviewPointerMove}
-                onPointerUp={finishPreviewDrag}
-                onPointerCancel={finishPreviewDrag}
-                onPointerLeave={finishPreviewDrag}
-                className={`block w-full bg-black outline-none ${
-                  isPreviewZoomed
-                    ? isPreviewDragging
-                      ? "cursor-grabbing"
-                      : "cursor-grab"
-                    : "cursor-zoom-in"
-                }`}
-                style={{ touchAction: isPreviewZoomed ? "none" : "auto" }}
-              >
-                <div
-                  className={`mx-auto ${
-                    isPreviewZoomed ? "w-[165%]" : "w-full"
-                  } ${isPreviewZoomed ? "cursor-inherit" : "cursor-zoom-in"}`}
-                >
-                  <img
-                    ref={previewImageRef}
-                    src={previewSlide.mediaSrc}
-                    alt={previewSlide.title}
-                    draggable={false}
-                    decoding="async"
-                    className="pointer-events-none block h-auto w-full select-none"
-                  />
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      ) : null}
-    </>
   );
 }
 

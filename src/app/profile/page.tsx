@@ -2,8 +2,7 @@
 /* eslint-disable @next/next/no-img-element */
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type ReactNode } from "react";
+import { useCallback, useEffect, useRef, useState, type ChangeEvent, type CSSProperties, type FormEvent, type ReactNode } from "react";
 import { AvatarMedia, AVATAR_FILE_ACCEPT } from "../avatar-media";
 import { HeaderSocialLinks } from "../header-social-links";
 import { SiteOnlineBadge } from "../site-online-badge";
@@ -207,7 +206,7 @@ const restoreProfilePathScript = `
 
           var legacyMatch = parsedUrl.pathname.match(/\\/profile\\/(\\d+)$/);
           return legacyMatch ? legacyMatch[1] : null;
-        } catch (error) {
+        } catch {
           return null;
         }
       };
@@ -515,7 +514,7 @@ const getStoredCurrentProfileId = () => {
   try {
     const storedProfileId = window.sessionStorage.getItem(CURRENT_PROFILE_ID_STORAGE_KEY);
     return storedProfileId && /^\d+$/.test(storedProfileId) ? Number(storedProfileId) : null;
-  } catch (error) {
+  } catch {
     return null;
   }
 };
@@ -550,7 +549,7 @@ const redirectToLocalProfile = (requestedProfileId: number, currentProfileId: nu
 
   try {
     window.sessionStorage.removeItem(PROFILE_PATH_STORAGE_KEY);
-  } catch (error) {}
+  } catch {}
   window.location.replace(profilePath(localProfileId));
   return true;
 };
@@ -560,7 +559,7 @@ const clearStoredProfileNavigationState = () => {
   try {
     window.sessionStorage.removeItem(PROFILE_PATH_STORAGE_KEY);
     window.sessionStorage.removeItem(CURRENT_PROFILE_ID_STORAGE_KEY);
-  } catch (error) {}
+  } catch {}
 };
 const redirectToRepoHome = () => {
   if (typeof window === "undefined") return;
@@ -874,7 +873,7 @@ const withAlpha = (value: string, alpha: number) => {
 
   return `rgba(${red}, ${green}, ${blue}, ${alpha})`;
 };
-const profileMetaCardStyle = (role: string | null | undefined): CSSProperties => {
+const profileMetaCardStyle = (): CSSProperties => {
   const borderColor = "#ff8fb1";
   const accentTextColor = "#ffd3de";
 
@@ -888,7 +887,7 @@ const profileMetaCardStyle = (role: string | null | undefined): CSSProperties =>
     boxShadow: `inset 0 1px 0 rgba(255,255,255,0.03), 0 0 26px ${withAlpha(borderColor, 0.1)}`,
   };
 };
-const profileMetaLabelStyle = (role: string | null | undefined): CSSProperties => {
+const profileMetaLabelStyle = (): CSSProperties => {
   const borderColor = "#ff8fb1";
 
   return {
@@ -896,7 +895,7 @@ const profileMetaLabelStyle = (role: string | null | undefined): CSSProperties =
     textShadow: `0 0 14px ${withAlpha(borderColor, 0.12)}`,
   };
 };
-const profileMetaValueStyle = (role: string | null | undefined): CSSProperties => {
+const profileMetaValueStyle = (): CSSProperties => {
   const accentTextColor = "#f3edf7";
 
   return {
@@ -905,16 +904,6 @@ const profileMetaValueStyle = (role: string | null | undefined): CSSProperties =
     fontWeight: 500,
     letterSpacing: "0",
     textShadow: "none",
-  };
-};
-const profileMetaValuePillStyle = (role: string | null | undefined): CSSProperties => {
-  const borderColor = "#ff8fb1";
-
-  return {
-    borderColor: withAlpha(borderColor, 0.36),
-    backgroundColor: "#171012",
-    backgroundImage: `linear-gradient(180deg, ${withAlpha(borderColor, 0.1)} 0%, rgba(23,16,18,0.96) 100%)`,
-    boxShadow: `0 0 22px ${withAlpha(borderColor, 0.12)}, inset 0 1px 0 rgba(255,255,255,0.04)`,
   };
 };
 const roleCommentAuthorColor = (role: string | null | undefined) => {
@@ -965,6 +954,72 @@ const roleCommentAuthorColor = (role: string | null | undefined) => {
 const roleCommentAuthorStyle = (role: string | null | undefined): CSSProperties => ({
   color: roleCommentAuthorColor(role),
 });
+const normalizeCommentAuthorKey = (value: string | null | undefined) =>
+  typeof value === "string"
+    ? value.trim().replace(/^@+/, "").toLocaleLowerCase().replace(/\s+/g, " ")
+    : "";
+const isCommentMentionBoundary = (value: string | undefined) =>
+  !value || !/[A-Za-z\u0400-\u04FF0-9._-]/.test(value);
+const extractCommentMentionKeys = (value: string | null | undefined) => {
+  if (typeof value !== "string" || !value) {
+    return [];
+  }
+
+  const mentionKeys: string[] = [];
+  COMMENT_MENTION_PATTERN.lastIndex = 0;
+  let match: RegExpExecArray | null;
+
+  while ((match = COMMENT_MENTION_PATTERN.exec(value))) {
+    const matchIndex = match.index;
+    const nextIndex = matchIndex + match[0].length;
+    const previousCharacter = matchIndex > 0 ? value[matchIndex - 1] : undefined;
+    const nextCharacter = nextIndex < value.length ? value[nextIndex] : undefined;
+
+    if (!isCommentMentionBoundary(previousCharacter) || !isCommentMentionBoundary(nextCharacter)) {
+      continue;
+    }
+
+    const mentionKey = normalizeCommentAuthorKey(match[1]);
+
+    if (mentionKey && !mentionKeys.includes(mentionKey)) {
+      mentionKeys.push(mentionKey);
+    }
+  }
+
+  return mentionKeys;
+};
+const commentMatchesUser = (comment: ProfileComment, user: UserProfile | null) => {
+  if (!user) {
+    return false;
+  }
+
+  if (comment.authorUid && comment.authorUid === user.uid) {
+    return true;
+  }
+
+  if (
+    typeof comment.authorProfileId === "number" &&
+    typeof user.profileId === "number" &&
+    comment.authorProfileId === user.profileId
+  ) {
+    return true;
+  }
+
+  const authorKey = normalizeCommentAuthorKey(comment.authorName);
+
+  if (!authorKey) {
+    return false;
+  }
+
+  const userKeys = [
+    user.login,
+    user.displayName,
+    nameOf(user),
+    typeof user.profileId === "number" ? `Profile #${user.profileId}` : null,
+  ];
+
+  return userKeys.some((value) => normalizeCommentAuthorKey(value) === authorKey);
+};
 const ROLE_MANAGER_NAMES = new Set(["root", "co-owner"]);
 const COMMENT_MODERATOR_ROLE_NAMES = new Set([
   "root",
@@ -1187,7 +1242,6 @@ const getClientBootstrap = () => {
 };
 
 export default function ProfilePage() {
-  const router = useRouter();
   const avatarInputRef = useRef<HTMLInputElement | null>(null);
   const adminAvatarInputRef = useRef<HTMLInputElement | null>(null);
   const [bootstrap] = useState(() => EMPTY_BOOTSTRAP);
@@ -1530,7 +1584,7 @@ export default function ProfilePage() {
           setSiteOnlineCount(nextCount);
           writeCachedSiteOnlineCount(nextCount);
         }
-      } catch (error) {
+      } catch {
       } finally {
         isRefreshing = false;
       }
@@ -1584,8 +1638,11 @@ export default function ProfilePage() {
     typeof profileThemeProfileId === "number"
       ? PROFILE_THEME_SONG_BY_PROFILE_ID.get(profileThemeProfileId) ?? null
       : null;
+  const hasKnownProfileThemeTitle =
+    typeof profileThemeProfileId === "number" &&
+    PROFILE_THEME_TITLE_BY_PROFILE_ID.has(profileThemeProfileId);
   const profileThemeTitle =
-    typeof profileThemeProfileId === "number"
+    hasKnownProfileThemeTitle
       ? profileThemeProfileId === 2
         ? "Face forever young"
         : profileThemeProfileId === 3
@@ -1617,8 +1674,6 @@ export default function ProfilePage() {
       profileThemeAutoplayAttemptedRef.current = null;
       return;
     }
-    audio.volume = profileThemeVolume;
-
     if (profileThemeAutoplayAttemptedRef.current !== profileThemeSongKey) {
       profileThemeAutoplayAttemptedRef.current = profileThemeSongKey;
       void audio.play().catch(() => {
@@ -1685,10 +1740,9 @@ export default function ProfilePage() {
   const canUseEnhancedAvatarMedia = canUseEnhancedAvatarMediaForRoles(activeProfile?.roles);
   const topProfileRole = profileRoles[0] ?? null;
   const profileHeadlineStyle = roleHeadlineStyle(topProfileRole);
-  const metaCardStyle = profileMetaCardStyle(topProfileRole);
-  const metaLabelStyle = profileMetaLabelStyle(topProfileRole);
-  const metaValueStyle = profileMetaValueStyle(topProfileRole);
-  const metaValuePillStyle = profileMetaValuePillStyle(topProfileRole);
+  const metaCardStyle = profileMetaCardStyle();
+  const metaLabelStyle = profileMetaLabelStyle();
+  const metaValueStyle = profileMetaValueStyle();
   const normalizedProfileRoleSet = new Set(profileRoles.map((role) => normalizeRoleName(role)));
   const isCurrentAccountBanned = visibleCurrentUser?.isBanned === true;
   const subscriptionSummary = activeProfile?.isBanned === true
@@ -1786,80 +1840,6 @@ export default function ProfilePage() {
       targetEmailVerified === false &&
       targetVerificationRequired !== false
   );
-  useEffect(() => {
-    if (typeof window === "undefined") {
-      return;
-    }
-
-    if (!isAdminPanelOpen || !canOpenAdminPanel || !profile?.profileId) {
-      setAdminPrivateProfileFields(null);
-      return;
-    }
-
-    const bridge = getWindowState().sakuraFirebaseAuth;
-
-    if (!bridge?.getAdminPrivateProfileFields) {
-      setAdminPrivateProfileFields(null);
-      return;
-    }
-
-    let isCancelled = false;
-
-    Promise.all([
-      bridge.getAdminPrivateProfileFields(profile.profileId),
-      bridge.refreshProfileById?.(profile.profileId) ?? Promise.resolve(null),
-    ])
-      .then(([fields, refreshedProfile]) => {
-        if (isCancelled) {
-          return;
-        }
-
-        if (refreshedProfile && refreshedProfile.profileId === profile.profileId) {
-          applyUpdatedProfileSnapshot(refreshedProfile, {
-            targetProfileId: profile.profileId,
-            updateCurrentUser: visibleCurrentUser?.profileId === profile.profileId,
-          });
-        }
-
-        setAdminPrivateProfileFields(fields);
-
-        if (!fields) {
-          return;
-        }
-
-        setProfile((currentProfile) => {
-          if (!currentProfile || currentProfile.profileId !== profile.profileId) {
-            return currentProfile;
-          }
-
-          return {
-            ...currentProfile,
-            email: currentProfile.email ?? fields.email ?? null,
-            emailVerified:
-              typeof currentProfile.emailVerified === "boolean"
-                ? currentProfile.emailVerified
-                : fields.emailVerified ?? undefined,
-            verificationRequired:
-              typeof currentProfile.verificationRequired === "boolean"
-                ? currentProfile.verificationRequired
-                : fields.verificationRequired ?? undefined,
-            providerIds:
-              currentProfile.providerIds?.length
-                ? currentProfile.providerIds
-                : fields.providerIds,
-          };
-        });
-      })
-      .catch(() => {
-        if (!isCancelled) {
-          setAdminPrivateProfileFields(null);
-        }
-      });
-
-    return () => {
-      isCancelled = true;
-    };
-  }, [canOpenAdminPanel, isAdminPanelOpen, profile?.profileId, visibleCurrentUser?.profileId]);
   const isTargetBanned =
     optimisticAdminBanState !== null ? optimisticAdminBanState : activeProfile?.isBanned === true;
   const targetVerificationStatus = !targetEmail
@@ -1964,7 +1944,7 @@ export default function ProfilePage() {
     writeCachedProfileComments(activeProfile.profileId, comments);
   }, [activeProfile?.profileId, comments]);
 
-  const applyUpdatedProfileSnapshot = (
+  const applyUpdatedProfileSnapshot = useCallback((
     snapshot: UserProfile | null,
     options: {
       targetProfileId?: number | null;
@@ -1997,12 +1977,20 @@ export default function ProfilePage() {
           )
       );
 
-    if (targetProfileId !== null ? snapshotProfileId === targetProfileId : matchesSnapshot(activeProfile)) {
-      setProfile(snapshot);
-    }
+    setProfile((currentProfile) =>
+      targetProfileId !== null
+        ? snapshotProfileId === targetProfileId
+          ? snapshot
+          : currentProfile
+        : matchesSnapshot(currentProfile)
+          ? snapshot
+          : currentProfile
+    );
 
-    if (shouldUpdateCurrentUser && matchesSnapshot(visibleCurrentUser)) {
-      setCurrentUser(snapshot);
+    if (shouldUpdateCurrentUser) {
+      setCurrentUser((currentUserSnapshot) =>
+        matchesSnapshot(currentUserSnapshot) ? snapshot : currentUserSnapshot
+      );
     }
 
     setComments((currentComments) =>
@@ -2052,7 +2040,81 @@ export default function ProfilePage() {
         return hasChanges ? nextProfilesByCommentId : currentProfilesByCommentId;
       });
     }
-  };
+  }, []);
+  useEffect(() => {
+    if (typeof window === "undefined") {
+      return;
+    }
+
+    if (!isAdminPanelOpen || !canOpenAdminPanel || !profile?.profileId) {
+      setAdminPrivateProfileFields(null);
+      return;
+    }
+
+    const bridge = getWindowState().sakuraFirebaseAuth;
+
+    if (!bridge?.getAdminPrivateProfileFields) {
+      setAdminPrivateProfileFields(null);
+      return;
+    }
+
+    let isCancelled = false;
+
+    Promise.all([
+      bridge.getAdminPrivateProfileFields(profile.profileId),
+      bridge.refreshProfileById?.(profile.profileId) ?? Promise.resolve(null),
+    ])
+      .then(([fields, refreshedProfile]) => {
+        if (isCancelled) {
+          return;
+        }
+
+        if (refreshedProfile && refreshedProfile.profileId === profile.profileId) {
+          applyUpdatedProfileSnapshot(refreshedProfile, {
+            targetProfileId: profile.profileId,
+            updateCurrentUser: visibleCurrentUser?.profileId === profile.profileId,
+          });
+        }
+
+        setAdminPrivateProfileFields(fields);
+
+        if (!fields) {
+          return;
+        }
+
+        setProfile((currentProfile) => {
+          if (!currentProfile || currentProfile.profileId !== profile.profileId) {
+            return currentProfile;
+          }
+
+          return {
+            ...currentProfile,
+            email: currentProfile.email ?? fields.email ?? null,
+            emailVerified:
+              typeof currentProfile.emailVerified === "boolean"
+                ? currentProfile.emailVerified
+                : fields.emailVerified ?? undefined,
+            verificationRequired:
+              typeof currentProfile.verificationRequired === "boolean"
+                ? currentProfile.verificationRequired
+                : fields.verificationRequired ?? undefined,
+            providerIds:
+              currentProfile.providerIds?.length
+                ? currentProfile.providerIds
+                : fields.providerIds,
+          };
+        });
+      })
+      .catch(() => {
+        if (!isCancelled) {
+          setAdminPrivateProfileFields(null);
+        }
+      });
+
+    return () => {
+      isCancelled = true;
+    };
+  }, [applyUpdatedProfileSnapshot, canOpenAdminPanel, isAdminPanelOpen, profile?.profileId, visibleCurrentUser?.profileId]);
   useEffect(() => {
     if (
       typeof window === "undefined" ||
@@ -2105,7 +2167,7 @@ export default function ProfilePage() {
           updateCurrentUser:
             visibleCurrentUser?.profileId === activeProfileId,
         });
-      } catch (_error) {
+      } catch {
       } finally {
         isRefreshing = false;
       }
@@ -2136,46 +2198,13 @@ export default function ProfilePage() {
     };
   }, [
     activeProfile?.profileId,
+    applyUpdatedProfileSnapshot,
     authError,
     authReady,
     authStateSettled,
     isAdminPanelOpen,
     visibleCurrentUser?.profileId,
   ]);
-  const normalizeCommentAuthorKey = (value: string | null | undefined) =>
-    typeof value === "string"
-      ? value.trim().replace(/^@+/, "").toLocaleLowerCase().replace(/\s+/g, " ")
-      : "";
-  const isCommentMentionBoundary = (value: string | undefined) =>
-    !value || !/[A-Za-z\u0400-\u04FF0-9._-]/.test(value);
-  const extractCommentMentionKeys = (value: string | null | undefined) => {
-    if (typeof value !== "string" || !value) {
-      return [];
-    }
-
-    const mentionKeys: string[] = [];
-    COMMENT_MENTION_PATTERN.lastIndex = 0;
-    let match: RegExpExecArray | null;
-
-    while ((match = COMMENT_MENTION_PATTERN.exec(value))) {
-      const matchIndex = match.index;
-      const nextIndex = matchIndex + match[0].length;
-      const previousCharacter = matchIndex > 0 ? value[matchIndex - 1] : undefined;
-      const nextCharacter = nextIndex < value.length ? value[nextIndex] : undefined;
-
-      if (!isCommentMentionBoundary(previousCharacter) || !isCommentMentionBoundary(nextCharacter)) {
-        continue;
-      }
-
-      const mentionKey = normalizeCommentAuthorKey(match[1]);
-
-      if (mentionKey && !mentionKeys.includes(mentionKey)) {
-        mentionKeys.push(mentionKey);
-      }
-    }
-
-    return mentionKeys;
-  };
   const isCommentMentionTokenCharacter = (value: string | null | undefined) =>
     Boolean(value) && COMMENT_MENTION_TOKEN_CHARACTER_PATTERN.test(value ?? "");
   const getCommentMentionDraft = (value: string, caret: number): MentionDraft | null => {
@@ -2632,17 +2661,13 @@ export default function ProfilePage() {
     setMentionSuggestions([]);
     setIsMentionSuggestionsLoading(false);
   };
-  const getActiveMentionDraft = (): MentionDraft | null => {
-    if (activeMentionComposer === "edit") {
-      return getCommentMentionDraft(editingCommentMessage, editingCommentMentionCaret);
-    }
-
-    if (activeMentionComposer === "new") {
-      return getCommentMentionDraft(commentInput, commentMentionCaret);
-    }
-
-    return null;
-  };
+  const activeMentionDraft =
+    activeMentionComposer === "edit"
+      ? getCommentMentionDraft(editingCommentMessage, editingCommentMentionCaret)
+      : activeMentionComposer === "new"
+        ? getCommentMentionDraft(commentInput, commentMentionCaret)
+        : null;
+  const activeMentionDraftQuery = activeMentionDraft?.query ?? null;
   const applyMentionSuggestion = (mode: MentionComposerMode, profile: UserProfile) => {
     const login = profile.login?.trim();
 
@@ -2697,9 +2722,7 @@ export default function ProfilePage() {
       return null;
     }
 
-    const activeDraft = getActiveMentionDraft();
-
-    if (!activeDraft) {
+    if (!activeMentionDraft) {
       return null;
     }
 
@@ -2782,38 +2805,6 @@ export default function ProfilePage() {
         )}
       </div>
     );
-  };
-  const commentMatchesUser = (comment: ProfileComment, user: UserProfile | null) => {
-    if (!user) {
-      return false;
-    }
-
-    if (comment.authorUid && comment.authorUid === user.uid) {
-      return true;
-    }
-
-    if (
-      typeof comment.authorProfileId === "number" &&
-      typeof user.profileId === "number" &&
-      comment.authorProfileId === user.profileId
-    ) {
-      return true;
-    }
-
-    const authorKey = normalizeCommentAuthorKey(comment.authorName);
-
-    if (!authorKey) {
-      return false;
-    }
-
-    const userKeys = [
-      user.login,
-      user.displayName,
-      nameOf(user),
-      typeof user.profileId === "number" ? `Profile #${user.profileId}` : null,
-    ];
-
-    return userKeys.some((value) => normalizeCommentAuthorKey(value) === authorKey);
   };
   const resolveCommentAuthorProfile = (comment: ProfileComment) => {
     const cachedCommentAuthorProfile = commentAuthorProfilesByCommentId[comment.id];
@@ -3101,7 +3092,7 @@ export default function ProfilePage() {
           return nextAuthorProfile && typeof nextAuthorProfile.profileId === "number"
             ? nextAuthorProfile
             : null;
-        } catch (error) {
+        } catch {
           return null;
         }
       })
@@ -3195,7 +3186,7 @@ export default function ProfilePage() {
                 }
                 profilesByAuthorKey.set(unresolvedAuthorName, resolvedCommentAuthorProfile);
               }
-            } catch (error) {
+            } catch {
             }
           })
         );
@@ -3269,7 +3260,7 @@ export default function ProfilePage() {
               if (resolvedMentionProfile) {
                 nextMentionProfilesByKey[mentionKey] = resolvedMentionProfile;
               }
-            } catch (error) {
+            } catch {
             }
           })
         );
@@ -3286,9 +3277,7 @@ export default function ProfilePage() {
   }, [comments, activeProfile, visibleCurrentUser, commentAuthorProfiles]);
 
   useEffect(() => {
-    const activeMentionDraft = getActiveMentionDraft();
-
-    if (!activeMentionComposer || !activeMentionDraft) {
+    if (!activeMentionComposer || !activeMentionDraftQuery) {
       clearMentionSuggestions();
       return;
     }
@@ -3301,7 +3290,7 @@ export default function ProfilePage() {
     }
 
     let isCancelled = false;
-    const cachedSuggestions = mentionSuggestionsCacheRef.current[activeMentionDraft.query];
+    const cachedSuggestions = mentionSuggestionsCacheRef.current[activeMentionDraftQuery];
 
     if (cachedSuggestions) {
       setIsMentionSuggestionsLoading(false);
@@ -3313,7 +3302,7 @@ export default function ProfilePage() {
     setMentionSuggestions([]);
     const searchTimeout = window.setTimeout(() => {
       bridge
-        .getProfilesByLoginPrefix(activeMentionDraft.query)
+        .getProfilesByLoginPrefix(activeMentionDraftQuery)
         .then((profiles) => {
           if (isCancelled) {
             return;
@@ -3324,7 +3313,7 @@ export default function ProfilePage() {
             index === entries.findIndex((entry) => entry.uid === profile.uid)
           );
 
-          mentionSuggestionsCacheRef.current[activeMentionDraft.query] = normalizedProfiles;
+          mentionSuggestionsCacheRef.current[activeMentionDraftQuery] = normalizedProfiles;
           setMentionSuggestions(normalizedProfiles);
         })
         .catch(() => {
@@ -3345,10 +3334,7 @@ export default function ProfilePage() {
     };
   }, [
     activeMentionComposer,
-    commentInput,
-    commentMentionCaret,
-    editingCommentMessage,
-    editingCommentMentionCaret,
+    activeMentionDraftQuery,
   ]);
 
   useEffect(() => {
@@ -3391,7 +3377,7 @@ export default function ProfilePage() {
               if (resolvedProfile) {
                 nextProfilesByKey[mentionKey] = resolvedProfile;
               }
-            } catch (error) {
+            } catch {
             }
           })
         );
@@ -4312,7 +4298,7 @@ export default function ProfilePage() {
     if (audio.paused) {
       try {
         await audio.play();
-      } catch (error) {
+      } catch {
       }
       return;
     }

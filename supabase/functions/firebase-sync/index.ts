@@ -114,7 +114,7 @@ const parseFirebaseServiceAccount = () => {
           normalizeString(parsed.private_key, 8192) ??
           normalizeString(parsed.privateKey, 8192),
       };
-    } catch (_error) {
+    } catch {
       if (firebaseServiceAccountEmail && firebaseServiceAccountPrivateKey) {
         return {
           projectId: null,
@@ -272,7 +272,7 @@ const verifySupabaseAccessToken = async (token: string): Promise<RequestActor> =
 const verifyRequestActor = async (token: string): Promise<RequestActor> => {
   try {
     return await verifyFirebaseIdToken(token);
-  } catch (_firebaseError) {
+  } catch {
     return await verifySupabaseAccessToken(token);
   }
 };
@@ -1536,7 +1536,7 @@ Deno.serve(async (request) => {
 
     try {
       actor = await verifyRequestActor(token);
-    } catch (_error) {
+    } catch {
       return json({ error: "Invalid or expired bearer token." }, 401);
     }
 

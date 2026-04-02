@@ -234,7 +234,7 @@ export function SiteOnlineBadge({
           setUsers(normalizedUsers);
           writeCachedSiteOnlineUsers(normalizedUsers);
         }
-      } catch (error) {
+      } catch {
         if (!isCancelled) {
           setLoadError("Could not load the online user list.");
         }
