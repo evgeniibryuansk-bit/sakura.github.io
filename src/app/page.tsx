@@ -36,14 +36,18 @@ function pseudoRandom(seed: number) {
 
 const sakuraLeaves = Array.from({ length: 15 }, (_, index) => {
   const startLeft = pseudoRandom(index + 1) * 100;
-  const drift = pseudoRandom((index + 1) * 7) * 10 - 5;
+  const drift = pseudoRandom((index + 1) * 7) * 18 - 9;
 
   return {
     id: index,
     startLeft: `${startLeft}%`,
-    endLeft: `${Math.min(100, Math.max(0, startLeft + drift))}%`,
-    duration: pseudoRandom((index + 1) * 11) * 10 + 10,
+    duration: pseudoRandom((index + 1) * 11) * 12 + 12,
     delay: pseudoRandom((index + 1) * 13) * 20,
+    sway: Math.round(drift * 6),
+    rotateStart: Math.round(pseudoRandom((index + 1) * 17) * 80 - 40),
+    rotateEnd: Math.round(pseudoRandom((index + 1) * 19) * 180 + 70),
+    scale: Number((pseudoRandom((index + 1) * 23) * 0.55 + 0.72).toFixed(2)),
+    opacity: Number((pseudoRandom((index + 1) * 29) * 0.18 + 0.34).toFixed(2)),
   };
 });
 
@@ -57,37 +61,66 @@ function SakuraPetalIcon({ className = "" }: { className?: string }) {
       xmlns="http://www.w3.org/2000/svg"
     >
       <path
-        d="M12.07 3.18C16 5.64 18.58 8.98 18.58 12.44C18.58 16.26 15.72 19 11.89 19C8.35 19 5.72 16.69 5.72 13.39C5.72 9.35 8.42 5.86 12.07 3.18Z"
+        d="M12.3 2.55C15.62 4.18 18.2 7.6 18.2 11.35C18.2 15.88 14.98 19.15 10.88 19.15C7.88 19.15 5.72 17.12 5.72 14.15C5.72 9.96 8.5 5.58 12.3 2.55Z"
         fill="currentColor"
       />
       <path
-        d="M12.07 3.18C9.23 6.53 8.26 10.39 9.12 14.78"
-        stroke="rgba(255,255,255,0.32)"
+        d="M12.22 3.32C10.08 6.48 8.92 10.22 9.44 14.78"
+        stroke="rgba(255,255,255,0.34)"
         strokeLinecap="round"
-        strokeWidth="1.1"
+        strokeWidth="1.15"
+      />
+      <path
+        d="M10.15 15.58C10.74 16.12 11.7 16.46 12.88 16.5"
+        stroke="rgba(255,255,255,0.18)"
+        strokeLinecap="round"
+        strokeWidth="1"
       />
     </svg>
   );
 }
 
-function SakuraLogoMark({ className = "" }: { className?: string }) {
+function SakuraBlossomIcon({ className = "" }: { className?: string }) {
   return (
     <svg
       aria-hidden="true"
-      viewBox="0 0 32 32"
+      viewBox="0 0 24 24"
       className={className}
       fill="none"
       xmlns="http://www.w3.org/2000/svg"
     >
-      <g fill="currentColor">
-        <ellipse cx="16" cy="7.2" rx="4.2" ry="6.2" />
-        <ellipse cx="16" cy="24.8" rx="4.2" ry="6.2" />
-        <ellipse cx="7.2" cy="16" rx="4.2" ry="6.2" transform="rotate(-90 7.2 16)" />
-        <ellipse cx="24.8" cy="16" rx="4.2" ry="6.2" transform="rotate(-90 24.8 16)" />
-        <ellipse cx="9.65" cy="9.65" rx="3.6" ry="5.4" transform="rotate(-45 9.65 9.65)" />
-      </g>
-      <circle cx="16" cy="16" r="3.1" fill="#FFD7E0" />
-      <circle cx="16" cy="16" r="1.15" fill="#111111" fillOpacity="0.22" />
+      <path
+        d="M12 3.05C13.3 3.05 14.42 4.25 14.24 5.84C14.12 6.94 13.54 7.88 12 9.15C10.46 7.88 9.88 6.94 9.76 5.84C9.58 4.25 10.7 3.05 12 3.05Z"
+        fill="currentColor"
+      />
+      <path
+        d="M18.8 7.9C19.72 8.81 19.59 10.45 18.29 11.39C17.39 12.04 16.32 12.22 14.34 11.88C14 9.91 14.18 8.84 14.83 7.94C15.77 6.63 17.89 6.99 18.8 7.9Z"
+        fill="currentColor"
+        fillOpacity="0.94"
+      />
+      <path
+        d="M17.17 17.96C16.54 19.1 14.95 19.48 13.54 18.7C12.57 18.16 11.88 17.32 11.37 15.39C13.23 14.6 14.32 14.56 15.31 15.03C16.72 15.7 17.8 16.82 17.17 17.96Z"
+        fill="currentColor"
+        fillOpacity="0.88"
+      />
+      <path
+        d="M6.83 17.96C6.2 16.82 7.28 15.7 8.69 15.03C9.68 14.56 10.77 14.6 12.63 15.39C12.12 17.32 11.43 18.16 10.46 18.7C9.05 19.48 7.46 19.1 6.83 17.96Z"
+        fill="currentColor"
+        fillOpacity="0.94"
+      />
+      <path
+        d="M5.2 7.9C6.11 6.99 8.23 6.63 9.17 7.94C9.82 8.84 10 9.91 9.66 11.88C7.68 12.22 6.61 12.04 5.71 11.39C4.41 10.45 4.28 8.81 5.2 7.9Z"
+        fill="currentColor"
+        fillOpacity="0.9"
+      />
+      <circle cx="12" cy="12.2" r="2.12" fill="#ffe4ec" />
+      <circle cx="12" cy="12.2" r="0.82" fill="#ff9fbb" />
+      <path
+        d="M12.02 10.14V8.82M13.56 10.56L14.48 9.54M10.5 10.56L9.58 9.54"
+        stroke="rgba(255,255,255,0.46)"
+        strokeLinecap="round"
+        strokeWidth="0.85"
+      />
     </svg>
   );
 }
@@ -592,14 +625,9 @@ function requiresGoogleAccountCompletion(user: AuthUserSnapshot | null | undefin
 }
 
 function buildUserLabel(user: AuthUserSnapshot) {
-  const shouldPreferLogin =
-    Boolean(user.login?.trim()) &&
-    (user.providerIds.includes("password") || !user.displayName?.trim());
-
   return (
-    (shouldPreferLogin ? user.login?.trim() : user.displayName?.trim()) ||
-    user.displayName?.trim() ||
     user.login?.trim() ||
+    user.displayName?.trim() ||
     user.email?.trim() ||
     "Signed in"
   );
@@ -677,16 +705,19 @@ function SakuraBackground() {
         <m.div
           key={leaf.id}
           initial={{
-            top: -20,
+            top: "-8vh",
             left: leaf.startLeft,
+            x: 0,
             opacity: 0,
-            rotate: 0,
+            rotate: leaf.rotateStart,
+            scale: leaf.scale * 0.92,
           }}
           animate={{
-            top: "110vh",
-            opacity: [0, 0.4, 0.4, 0],
-            rotate: 360,
-            left: leaf.endLeft,
+            top: ["-8vh", "34vh", "72vh", "112vh"],
+            x: [0, leaf.sway, Math.round(leaf.sway * -0.6), Math.round(leaf.sway * 0.35)],
+            opacity: [0, leaf.opacity, leaf.opacity * 0.92, 0],
+            rotate: [leaf.rotateStart, Math.round((leaf.rotateStart + leaf.rotateEnd) / 2), leaf.rotateEnd],
+            scale: [leaf.scale * 0.92, leaf.scale, leaf.scale * 1.04, leaf.scale * 0.9],
           }}
           transition={{
             duration: leaf.duration,
@@ -1895,8 +1926,8 @@ export default function Home() {
         <nav className="grid grid-cols-1 gap-5 border-b border-[#1a1a1a] px-8 py-6 md:grid-cols-[1fr_auto_1fr] md:items-center">
           <div className="flex flex-wrap items-center gap-3 md:justify-self-start">
             <Link href="/" className="flex items-center gap-3 transition-opacity hover:opacity-90">
-              <span className="text-[#ffb7c5] drop-shadow-[0_0_14px_rgba(255,183,197,0.5)]">
-                <SakuraLogoMark className="h-8 w-8" />
+              <span className="inline-flex h-9 w-9 items-center justify-center rounded-full border border-[#372127] bg-[radial-gradient(circle_at_40%_35%,rgba(255,220,230,0.2),rgba(255,183,197,0.12)_46%,rgba(0,0,0,0)_78%)] shadow-[0_0_18px_rgba(255,183,197,0.22)]">
+                <SakuraBlossomIcon className="h-6 w-6 text-[#ffb7c5]" />
               </span>
               <h1 className="text-xl font-black tracking-tighter uppercase text-white">
                 Sa<span className="text-[#ffb7c5]">kura</span>

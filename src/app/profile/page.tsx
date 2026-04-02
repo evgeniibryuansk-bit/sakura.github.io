@@ -1344,6 +1344,9 @@ export default function ProfilePage() {
   const editingCommentMediaInputRef = useRef<HTMLInputElement | null>(null);
   const ownerUsernameInputRef = useRef<HTMLInputElement | null>(null);
   const adminUsernameInputRef = useRef<HTMLInputElement | null>(null);
+  const hydratedDisplayNameRef = useRef("");
+  const hydratedLoginRef = useRef("");
+  const lastResetProfileIdRef = useRef<number | null>(null);
 
   const syncTextareaHeight = (element: HTMLTextAreaElement | null) => {
     if (!element) return;
@@ -2918,6 +2921,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (!activeProfileId) {
+      lastResetProfileIdRef.current = null;
+      hydratedDisplayNameRef.current = "";
+      hydratedLoginRef.current = "";
       setDraftRoles([]);
       setRolesError(null);
       setRolesSuccess(null);
@@ -2925,6 +2931,12 @@ export default function ProfilePage() {
       setVerificationSuccess(null);
       setAdminVerificationError(null);
       setAdminVerificationSuccess(null);
+      setDisplayNameInput("");
+      setDisplayNameError(null);
+      setDisplayNameSuccess(null);
+      setUsernameInput("");
+      setUsernameError(null);
+      setUsernameSuccess(null);
       setComments([]);
       setCommentAuthorProfiles({});
       setCommentAuthorProfilesByCommentId({});
@@ -2952,13 +2964,13 @@ export default function ProfilePage() {
       return;
     }
 
-    setDraftRoles(
-      normalizeRoleSelection(
-        activeProfileRoleSignature ? activeProfileRoleSignature.split("|") : []
-      )
-    );
-    setRolesError(null);
-    setRolesSuccess(null);
+    if (lastResetProfileIdRef.current === activeProfileId) {
+      return;
+    }
+
+    lastResetProfileIdRef.current = activeProfileId;
+    hydratedDisplayNameRef.current = activeProfileDisplayNameDraft;
+    hydratedLoginRef.current = activeProfileLoginDraft;
     setVerificationError(null);
     setVerificationSuccess(null);
     setAdminVerificationError(null);
@@ -2987,11 +2999,72 @@ export default function ProfilePage() {
     setIsEditingCommentMediaRemoved(false);
     setIsCommentUpdating(false);
     setDeletingCommentId(null);
+  }, [activeProfileDisplayNameDraft, activeProfileId, activeProfileLoginDraft]);
+
+  useEffect(() => {
+    if (!activeProfileId) {
+      return;
+    }
+
+    setDraftRoles(
+      normalizeRoleSelection(
+        activeProfileRoleSignature ? activeProfileRoleSignature.split("|") : []
+      )
+    );
+  }, [activeProfileId, activeProfileRoleSignature]);
+
+  useEffect(() => {
+    if (!activeProfileId) {
+      hydratedDisplayNameRef.current = "";
+      return;
+    }
+
+    const previousHydratedDisplayName = hydratedDisplayNameRef.current;
+
+    if (activeProfileDisplayNameDraft === previousHydratedDisplayName) {
+      return;
+    }
+
+    const shouldHydrateInput =
+      !isDisplayNameSaving && displayNameInput === previousHydratedDisplayName;
+
+    hydratedDisplayNameRef.current = activeProfileDisplayNameDraft;
+
+    if (shouldHydrateInput) {
+      setDisplayNameInput(activeProfileDisplayNameDraft);
+    }
   }, [
     activeProfileId,
-    activeProfileRoleSignature,
     activeProfileDisplayNameDraft,
+    displayNameInput,
+    isDisplayNameSaving,
+  ]);
+
+  useEffect(() => {
+    if (!activeProfileId) {
+      hydratedLoginRef.current = "";
+      return;
+    }
+
+    const previousHydratedLogin = hydratedLoginRef.current;
+
+    if (activeProfileLoginDraft === previousHydratedLogin) {
+      return;
+    }
+
+    const shouldHydrateInput =
+      !isUsernameSaving && usernameInput === previousHydratedLogin;
+
+    hydratedLoginRef.current = activeProfileLoginDraft;
+
+    if (shouldHydrateInput) {
+      setUsernameInput(activeProfileLoginDraft);
+    }
+  }, [
+    activeProfileId,
     activeProfileLoginDraft,
+    isUsernameSaving,
+    usernameInput,
   ]);
 
   useEffect(() => {
@@ -3810,7 +3883,9 @@ export default function ProfilePage() {
         targetProfileId: !isOwner ? activeProfile?.profileId ?? null : null,
         updateCurrentUser: isOwner,
       });
-      setDisplayNameInput(snapshot?.displayName ?? nextDisplayName);
+      const resolvedDisplayName = snapshot?.displayName ?? nextDisplayName;
+      hydratedDisplayNameRef.current = resolvedDisplayName;
+      setDisplayNameInput(resolvedDisplayName);
       setDisplayNameSuccess(isOwner ? "Profile name saved." : "Profile name updated.");
     } catch (error) {
       setDisplayNameError(error instanceof Error ? error.message : "Could not save profile name.");
@@ -3858,6 +3933,7 @@ export default function ProfilePage() {
         updateCurrentUser: isOwner,
       });
       if (snapshot?.login) {
+        hydratedLoginRef.current = snapshot.login;
         setUsernameInput(snapshot.login);
       }
       if (isOwner) {

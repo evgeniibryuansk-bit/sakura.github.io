@@ -711,22 +711,42 @@ const markAuthStatePending = () => {
   runtime.sakuraAuthStateSettled = false;
 };
 
+const hasOwnPayloadField = (
+  payload: Record<string, unknown> | null,
+  key: string,
+) => Boolean(payload && Object.prototype.hasOwnProperty.call(payload, key));
+
 const mapSupabaseProfilePayloadToSnapshot = (
   payload: Record<string, unknown> | null,
   options: {
     fallbackUser?: User | null;
+    fallbackSnapshot?: AppUserSnapshot | null;
     fallbackPresence?: PresenceSnapshot | null;
     verificationEmailSent?: boolean;
   } = {},
 ): AppUserSnapshot | null => {
   const fallbackUser = options.fallbackUser ?? null;
+  const fallbackSnapshot =
+    options.fallbackSnapshot &&
+    (!fallbackUser?.id || options.fallbackSnapshot.uid === fallbackUser.id)
+      ? options.fallbackSnapshot
+      : null;
 
   if (!payload && !fallbackUser?.id) {
     return null;
   }
 
+  const loginFromUserMetadata =
+    sanitizeLogin(
+      typeof fallbackUser?.user_metadata?.login === "string"
+        ? fallbackUser.user_metadata.login
+        : typeof fallbackUser?.user_metadata?.requested_login === "string"
+          ? fallbackUser.user_metadata.requested_login
+          : null,
+    ) || null;
   const providerIds = mergeProviderIds(
     payload?.providerIds,
+    fallbackSnapshot?.providerIds,
     normalizeProviderIdsFromUser(fallbackUser),
   );
   const emailVerifiedFromUser = Boolean(
@@ -740,53 +760,92 @@ const mapSupabaseProfilePayloadToSnapshot = (
     typeof payload?.verificationRequired === "boolean"
       ? payload.verificationRequired
       : !emailVerified;
-  const login = normalizeString(payload?.login);
+  const login = hasOwnPayloadField(payload, "login")
+    ? normalizeString(payload?.login)
+    : normalizeString(payload?.login) ?? fallbackSnapshot?.login ?? loginFromUserMetadata;
   const displayName =
-    normalizeString(payload?.displayName) ??
+    (hasOwnPayloadField(payload, "displayName")
+      ? normalizeString(payload?.displayName)
+      : normalizeString(payload?.displayName) ?? fallbackSnapshot?.displayName) ??
     normalizeString(fallbackUser?.user_metadata?.display_name) ??
     normalizeString(fallbackUser?.user_metadata?.full_name) ??
     normalizeString(fallbackUser?.user_metadata?.name) ??
     login ??
-    normalizeString(fallbackUser?.email?.split("@")[0] ?? null);
+    normalizeString(fallbackUser?.email?.split("@")[0] ?? null) ??
+    fallbackSnapshot?.displayName ??
+    null;
 
   return {
     uid:
       normalizeString(payload?.authUserId) ??
       normalizeString(payload?.firebaseUid) ??
       fallbackUser?.id ??
+      fallbackSnapshot?.uid ??
       "",
     isAnonymous: false,
-    email: normalizeString(payload?.email) ?? fallbackUser?.email ?? null,
+    email:
+      (hasOwnPayloadField(payload, "email")
+        ? normalizeString(payload?.email)
+        : normalizeString(payload?.email) ?? fallbackSnapshot?.email) ??
+      fallbackUser?.email ??
+      null,
     emailVerified,
     verificationRequired,
     verificationEmailSent: options.verificationEmailSent ?? Boolean(payload?.verificationEmailSent),
     login,
     displayName,
-    profileId: normalizeInteger(payload?.profileId),
+    profileId: hasOwnPayloadField(payload, "profileId")
+      ? normalizeInteger(payload?.profileId)
+      : normalizeInteger(payload?.profileId) ?? fallbackSnapshot?.profileId ?? null,
     photoURL:
-      normalizeString(payload?.photoURL) ??
+      (hasOwnPayloadField(payload, "photoURL")
+        ? normalizeString(payload?.photoURL)
+        : normalizeString(payload?.photoURL) ?? fallbackSnapshot?.photoURL) ??
       normalizeString(fallbackUser?.user_metadata?.avatar_url) ??
-      normalizeString(fallbackUser?.user_metadata?.picture),
-    avatarPath: normalizeString(payload?.avatarPath),
-    avatarType: normalizeString(payload?.avatarType),
-    avatarSize: normalizeInteger(payload?.avatarSize),
-    roles: normalizeRoles(payload?.roles).length ? normalizeRoles(payload?.roles) : ["user"],
-    isBanned: payload?.isBanned === true,
-    bannedAt: normalizeString(payload?.bannedAt),
+      normalizeString(fallbackUser?.user_metadata?.picture) ??
+      null,
+    avatarPath: hasOwnPayloadField(payload, "avatarPath")
+      ? normalizeString(payload?.avatarPath)
+      : normalizeString(payload?.avatarPath) ?? fallbackSnapshot?.avatarPath ?? null,
+    avatarType: hasOwnPayloadField(payload, "avatarType")
+      ? normalizeString(payload?.avatarType)
+      : normalizeString(payload?.avatarType) ?? fallbackSnapshot?.avatarType ?? null,
+    avatarSize: hasOwnPayloadField(payload, "avatarSize")
+      ? normalizeInteger(payload?.avatarSize)
+      : normalizeInteger(payload?.avatarSize) ?? fallbackSnapshot?.avatarSize ?? null,
+    roles: hasOwnPayloadField(payload, "roles")
+      ? (normalizeRoles(payload?.roles).length ? normalizeRoles(payload?.roles) : ["user"])
+      : (fallbackSnapshot?.roles?.length ? normalizeRoles(fallbackSnapshot.roles) : ["user"]),
+    isBanned: hasOwnPayloadField(payload, "isBanned")
+      ? payload?.isBanned === true
+      : fallbackSnapshot?.isBanned === true,
+    bannedAt: hasOwnPayloadField(payload, "bannedAt")
+      ? normalizeString(payload?.bannedAt)
+      : normalizeString(payload?.bannedAt) ?? fallbackSnapshot?.bannedAt ?? null,
     providerIds,
     creationTime:
-      normalizeString(payload?.creationTime) ??
-      (typeof fallbackUser?.created_at === "string" ? fallbackUser.created_at : null),
+      (hasOwnPayloadField(payload, "creationTime")
+        ? normalizeString(payload?.creationTime)
+        : normalizeString(payload?.creationTime) ?? fallbackSnapshot?.creationTime) ??
+      (typeof fallbackUser?.created_at === "string" ? fallbackUser.created_at : null) ??
+      null,
     lastSignInTime:
-      normalizeString(payload?.lastSignInTime) ??
-      (typeof fallbackUser?.last_sign_in_at === "string" ? fallbackUser.last_sign_in_at : null),
-    loginHistory:
-      Array.isArray(payload?.loginHistory)
-        ? payload.loginHistory.filter((entry): entry is string => typeof entry === "string")
-        : [],
-    visitHistory: normalizeVisitHistory(payload?.visitHistory),
+      (hasOwnPayloadField(payload, "lastSignInTime")
+        ? normalizeString(payload?.lastSignInTime)
+        : normalizeString(payload?.lastSignInTime) ?? fallbackSnapshot?.lastSignInTime) ??
+      (typeof fallbackUser?.last_sign_in_at === "string" ? fallbackUser.last_sign_in_at : null) ??
+      null,
+    loginHistory: hasOwnPayloadField(payload, "loginHistory")
+      ? (Array.isArray(payload?.loginHistory)
+          ? payload.loginHistory.filter((entry): entry is string => typeof entry === "string")
+          : [])
+      : (fallbackSnapshot?.loginHistory ?? []),
+    visitHistory: hasOwnPayloadField(payload, "visitHistory")
+      ? normalizeVisitHistory(payload?.visitHistory)
+      : (normalizeVisitHistory(payload?.visitHistory) ?? fallbackSnapshot?.visitHistory ?? []),
     presence:
       normalizePresence(payload?.presence, readCurrentLocationPath()) ??
+      fallbackSnapshot?.presence ??
       options.fallbackPresence ??
       null,
   };
@@ -1211,20 +1270,38 @@ const buildFallbackSnapshotFromUser = (
   user: User,
   options: {
     verificationEmailSent?: boolean;
+    fallbackSnapshot?: AppUserSnapshot | null;
     fallbackPresence?: PresenceSnapshot | null;
   } = {},
 ): AppUserSnapshot => {
-  const providerIds = normalizeProviderIdsFromUser(user);
+  const fallbackSnapshot =
+    options.fallbackSnapshot?.uid === user.id ? options.fallbackSnapshot : null;
+  const providerIds = mergeProviderIds(
+    fallbackSnapshot?.providerIds,
+    normalizeProviderIdsFromUser(user),
+  );
+  const login =
+    sanitizeLogin(
+      typeof user.user_metadata?.login === "string"
+        ? user.user_metadata.login
+        : typeof user.user_metadata?.requested_login === "string"
+          ? user.user_metadata.requested_login
+          : null,
+    ) ||
+    fallbackSnapshot?.login ||
+    null;
   const displayName =
     normalizeString(user.user_metadata?.display_name) ??
     normalizeString(user.user_metadata?.full_name) ??
     normalizeString(user.user_metadata?.name) ??
+    fallbackSnapshot?.displayName ??
+    login ??
     normalizeString(user.email?.split("@")[0] ?? null);
 
   return {
     uid: user.id,
     isAnonymous: false,
-    email: user.email ?? null,
+    email: user.email ?? fallbackSnapshot?.email ?? null,
     emailVerified:
       Boolean(user.email_confirmed_at || user.confirmed_at) ||
       providerIds.includes("google.com"),
@@ -1233,31 +1310,30 @@ const buildFallbackSnapshotFromUser = (
       providerIds.includes("google.com")
     ),
     verificationEmailSent: options.verificationEmailSent ?? false,
-    login:
-      sanitizeLogin(
-        typeof user.user_metadata?.login === "string"
-          ? user.user_metadata.login
-          : typeof user.user_metadata?.requested_login === "string"
-            ? user.user_metadata.requested_login
-            : null,
-      ) || null,
+    login,
     displayName,
-    profileId: null,
+    profileId: fallbackSnapshot?.profileId ?? null,
     photoURL:
       normalizeString(user.user_metadata?.avatar_url) ??
-      normalizeString(user.user_metadata?.picture),
-    avatarPath: null,
-    avatarType: null,
-    avatarSize: null,
-    roles: ["user"],
-    isBanned: false,
-    bannedAt: null,
+      normalizeString(user.user_metadata?.picture) ??
+      fallbackSnapshot?.photoURL ??
+      null,
+    avatarPath: fallbackSnapshot?.avatarPath ?? null,
+    avatarType: fallbackSnapshot?.avatarType ?? null,
+    avatarSize: fallbackSnapshot?.avatarSize ?? null,
+    roles: fallbackSnapshot?.roles?.length ? normalizeRoles(fallbackSnapshot.roles) : ["user"],
+    isBanned: fallbackSnapshot?.isBanned === true,
+    bannedAt: fallbackSnapshot?.bannedAt ?? null,
     providerIds,
-    creationTime: typeof user.created_at === "string" ? user.created_at : null,
-    lastSignInTime: typeof user.last_sign_in_at === "string" ? user.last_sign_in_at : null,
-    loginHistory: [],
-    visitHistory: [],
-    presence: options.fallbackPresence ?? null,
+    creationTime:
+      typeof user.created_at === "string" ? user.created_at : fallbackSnapshot?.creationTime ?? null,
+    lastSignInTime:
+      typeof user.last_sign_in_at === "string"
+        ? user.last_sign_in_at
+        : fallbackSnapshot?.lastSignInTime ?? null,
+    loginHistory: fallbackSnapshot?.loginHistory ?? [],
+    visitHistory: fallbackSnapshot?.visitHistory ?? [],
+    presence: options.fallbackPresence ?? fallbackSnapshot?.presence ?? null,
   };
 };
 
@@ -1281,6 +1357,7 @@ const loadCurrentAuthProfileFromRpc = async (
 
     return mapSupabaseProfilePayloadToSnapshot(response, {
       fallbackUser: currentUser,
+      fallbackSnapshot: getRuntimeWindow().sakuraCurrentUserSnapshot ?? null,
       fallbackPresence: getRuntimeWindow().sakuraCurrentUserSnapshot?.presence ?? null,
     });
   } catch {
@@ -1398,6 +1475,7 @@ const refreshCurrentUserSnapshot = async (
   if (!snapshot) {
     snapshot = buildFallbackSnapshotFromUser(currentUser, {
       verificationEmailSent: options.verificationEmailSent,
+      fallbackSnapshot: getRuntimeWindow().sakuraCurrentUserSnapshot ?? null,
       fallbackPresence:
         options.fallbackPresence ??
         getRuntimeWindow().sakuraCurrentUserSnapshot?.presence ??
@@ -1406,6 +1484,7 @@ const refreshCurrentUserSnapshot = async (
   } else {
     snapshot = mapSupabaseProfilePayloadToSnapshot(snapshot, {
       fallbackUser: currentUser,
+      fallbackSnapshot: getRuntimeWindow().sakuraCurrentUserSnapshot ?? null,
       verificationEmailSent: options.verificationEmailSent ?? snapshot.verificationEmailSent,
       fallbackPresence:
         options.fallbackPresence ??
@@ -1927,6 +2006,7 @@ export const startSupabaseAppRuntime = async () => {
     ) => {
       const snapshot = mapSupabaseProfilePayloadToSnapshot(payload, {
         fallbackUser: runtime.sakuraSupabaseCurrentSession?.user ?? null,
+        fallbackSnapshot: runtime.sakuraCurrentUserSnapshot ?? null,
         verificationEmailSent: options.verificationEmailSent,
         fallbackPresence: runtime.sakuraCurrentUserSnapshot?.presence ?? null,
       });
@@ -2194,15 +2274,15 @@ export const startSupabaseAppRuntime = async () => {
           { forceFresh: true },
         );
 
-        await client.auth
+        const optimisticSnapshot = publishCurrentUserSnapshotFromPayload(response);
+
+        void client.auth
           .updateUser({
             data: {
               display_name: sanitizedDisplayName,
             },
           })
           .catch(() => null);
-
-        const optimisticSnapshot = publishCurrentUserSnapshotFromPayload(response);
 
         void refreshAndTrackCurrentUser({ forceFresh: true }).catch(() => null);
 
@@ -2225,7 +2305,9 @@ export const startSupabaseAppRuntime = async () => {
           { forceFresh: true },
         );
 
-        await client.auth
+        const optimisticSnapshot = publishCurrentUserSnapshotFromPayload(response);
+
+        void client.auth
           .updateUser({
             data: {
               login: sanitizedLogin,
@@ -2233,8 +2315,6 @@ export const startSupabaseAppRuntime = async () => {
             },
           })
           .catch(() => null);
-
-        const optimisticSnapshot = publishCurrentUserSnapshotFromPayload(response);
 
         void refreshAndTrackCurrentUser({ forceFresh: true }).catch(() => null);
 
@@ -2498,7 +2578,7 @@ export const startSupabaseAppRuntime = async () => {
 
     void initializeRuntime();
 
-    client.auth.onAuthStateChange((_event, session) => {
+    client.auth.onAuthStateChange((event, session) => {
       void (async () => {
         try {
           clearAuthError();
@@ -2510,7 +2590,13 @@ export const startSupabaseAppRuntime = async () => {
             return;
           }
 
-          await refreshAndTrackCurrentUser();
+          await refreshAndTrackCurrentUser({
+            forceFresh:
+              event === "SIGNED_IN" ||
+              event === "TOKEN_REFRESHED" ||
+              event === "USER_UPDATED" ||
+              event === "INITIAL_SESSION",
+          });
         } catch (error) {
           emitAuthError(error instanceof Error ? error.message : "Auth state refresh failed.");
         } finally {
