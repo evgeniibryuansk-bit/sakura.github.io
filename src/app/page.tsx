@@ -229,6 +229,17 @@ type SupabaseAuthBridge = {
   loginWithGoogle: () => Promise<null>;
 };
 
+type LegacyAccountRecoveryDetails = {
+  profileId?: number | null;
+  email?: string | null;
+  login?: string | null;
+  displayName?: string | null;
+  hasAuthUser?: boolean;
+  needsActivation?: boolean;
+  isLegacyProfile?: boolean;
+  canActivateWithEmail?: boolean;
+};
+
 declare global {
   interface Window {
     loginWithGoogle?: () => Promise<AuthUserSnapshot | null>;
@@ -488,6 +499,12 @@ function getAuthErrorMessage(error: unknown) {
     return "Account with this login was not found.";
   }
 
+  if (code === "auth/legacy-account-activation-required") {
+    return error instanceof Error && error.message
+      ? error.message
+      : "This account exists in the legacy profile database. Open Registration and activate it with the original email.";
+  }
+
   if (
     code === "auth/user-not-found" ||
     code === "auth/wrong-password" ||
@@ -526,6 +543,10 @@ function getAuthErrorMessage(error: unknown) {
     case "auth/login-already-in-use":
     case "auth/login-not-found":
       return "Пароль должен содержать минимум 6 символов.";
+    case "auth/legacy-account-activation-required":
+      return error instanceof Error && error.message
+        ? error.message
+        : "Р­С‚РѕС‚ Р°РєРєР°СѓРЅС‚ РµС‰Рµ РЅРµ Р°РєС‚РёРІРёСЂРѕРІР°РЅ РІ Supabase. РћС‚РєСЂРѕР№С‚Рµ Registration Рё РёСЃРїРѕР»СЊР·СѓР№С‚Рµ РёСЃС…РѕРґРЅС‹Р№ email.";
     case "auth/user-not-found":
     case "auth/wrong-password":
     case "auth/invalid-credential":
@@ -1267,6 +1288,40 @@ function HeaderAuth() {
         await navigateToProfile(snapshot);
       }
     } catch (error) {
+      const code =
+        typeof error === "object" && error !== null && "code" in error
+          ? String((error as { code?: unknown }).code ?? "")
+          : "";
+
+      if (code === "auth/legacy-account-activation-required") {
+        const details =
+          typeof error === "object" && error !== null && "details" in error
+            ? ((error as { details?: LegacyAccountRecoveryDetails }).details ?? null)
+            : null;
+        const resolvedEmail =
+          typeof details?.email === "string" && details.email.trim()
+            ? details.email.trim()
+            : identifier.includes("@")
+              ? identifier.trim()
+              : "";
+        const resolvedLogin =
+          typeof details?.login === "string" && details.login.trim()
+            ? details.login.trim()
+            : loginName.trim().replace(/\s+/g, "");
+        const resolvedDisplayName =
+          typeof details?.displayName === "string" && details.displayName.trim()
+            ? details.displayName.trim()
+            : profileName.trim();
+
+        setMode("register");
+        setIsModalOpen(true);
+        setIdentifier(resolvedEmail);
+        setLoginName(resolvedLogin);
+        setProfileName(resolvedDisplayName);
+        setPassword("");
+        setConfirmPassword("");
+      }
+
       setSubmitError(getAuthErrorMessage(error));
     } finally {
       setIsSubmitting(false);

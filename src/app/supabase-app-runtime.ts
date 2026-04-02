@@ -22,6 +22,17 @@ type PresenceSnapshot = {
   lastSeenAt: string | null;
 };
 
+type LegacyProfileRecovery = {
+  profileId: number | null;
+  email: string | null;
+  login: string | null;
+  displayName: string | null;
+  hasAuthUser: boolean;
+  needsActivation: boolean;
+  isLegacyProfile: boolean;
+  canActivateWithEmail: boolean;
+};
+
 export type AppUserSnapshot = {
   uid: string;
   isAnonymous: boolean;
@@ -1253,6 +1264,54 @@ const resolveSigninEmailForLogin = async (login: string) => {
   }
 };
 
+const resolveLegacyProfileRecovery = async (
+  identifier: string,
+): Promise<LegacyProfileRecovery | null> => {
+  if (!identifier || !supabaseRestUrl || !supabaseAnonKey) {
+    return null;
+  }
+
+  try {
+    const response = await fetch(buildSupabaseRpcUrl("resolve_legacy_profile_recovery"), {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        apikey: supabaseAnonKey,
+        Authorization: `Bearer ${supabaseAnonKey}`,
+        "Accept-Profile": "public",
+        "Content-Profile": "public",
+        Accept: "application/json",
+      },
+      body: JSON.stringify({
+        target_identifier: identifier,
+      }),
+    });
+
+    if (!response.ok) {
+      return null;
+    }
+
+    const payload = (await response.json().catch(() => null)) as Record<string, unknown> | null;
+
+    if (!payload || typeof payload !== "object") {
+      return null;
+    }
+
+    return {
+      profileId: normalizeInteger(payload.profileId),
+      email: normalizeString(payload.email),
+      login: normalizeString(payload.login),
+      displayName: normalizeString(payload.displayName),
+      hasAuthUser: payload.hasAuthUser === true,
+      needsActivation: payload.needsActivation === true,
+      isLegacyProfile: payload.isLegacyProfile === true,
+      canActivateWithEmail: payload.canActivateWithEmail === true,
+    };
+  } catch {
+    return null;
+  }
+};
+
 const toPresenceUser = (user: User | null, snapshot: AppUserSnapshot | null) => {
   const uid = user?.id ?? snapshot?.uid ?? null;
 
@@ -2038,7 +2097,32 @@ export const startSupabaseAppRuntime = async () => {
         });
 
         if (error) {
-          throw normalizeSupabaseAuthError(error);
+          const normalizedError = normalizeSupabaseAuthError(error) as Error & {
+            code?: string;
+          };
+
+          if (normalizedError.code === "auth/invalid-credential") {
+            const recovery = await resolveLegacyProfileRecovery(normalizedIdentifier);
+
+            if (recovery?.needsActivation) {
+              const recoveryMessage =
+                recovery.canActivateWithEmail && recovery.email
+                  ? `This account was found in the legacy profile database. Open Registration and use ${recovery.email} to activate it in Supabase.`
+                  : "This account was found in the legacy profile database. Open Registration and use the original email to activate it in Supabase.";
+              const legacyError = createAppError(
+                "auth/legacy-account-activation-required",
+                recoveryMessage,
+              ) as Error & {
+                code?: string;
+                details?: LegacyProfileRecovery;
+              };
+
+              legacyError.details = recovery;
+              throw legacyError;
+            }
+          }
+
+          throw normalizedError;
         }
 
         return await refreshAndTrackCurrentUser();
