@@ -5,7 +5,9 @@ import { isSupabaseConfigured } from "@/lib/supabase";
 
 type SupabaseBootWindow = Window & {
   sakuraStartSupabaseAuth?: () => Promise<unknown> | unknown;
+  sakuraStartSupabaseApp?: () => Promise<unknown> | unknown;
   sakuraSupabaseRuntimePromise?: Promise<unknown> | null;
+  sakuraStartFirebaseAuth?: () => Promise<unknown> | unknown;
 };
 
 const getWindowState = () => window as SupabaseBootWindow;
@@ -78,8 +80,8 @@ export default function SupabaseAuthBoot() {
 
     const loadRuntime = async () => {
       if (!runtime.sakuraSupabaseRuntimePromise) {
-        runtime.sakuraSupabaseRuntimePromise = import("./supabase-auth-runtime")
-          .then(({ startSupabaseAuthRuntime }) => startSupabaseAuthRuntime())
+        runtime.sakuraSupabaseRuntimePromise = import("./supabase-app-runtime")
+          .then(({ startSupabaseAppRuntime }) => startSupabaseAppRuntime())
           .finally(() => {
             runtime.sakuraSupabaseRuntimePromise = null;
           });
@@ -98,6 +100,8 @@ export default function SupabaseAuthBoot() {
     };
 
     runtime.sakuraStartSupabaseAuth = bootNow;
+    runtime.sakuraStartSupabaseApp = bootNow;
+    runtime.sakuraStartFirebaseAuth = bootNow;
 
     if (shouldBootImmediately()) {
       void bootNow();

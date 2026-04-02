@@ -442,7 +442,7 @@ function getFirebaseErrorMessage(error: unknown) {
   }
 
   if (code === "permission-denied") {
-    return "Firestore blocked access. Проверьте rules для users и meta/counters в Firebase Console.";
+    return "Access was blocked. Проверьте Supabase policies и текущую сессию.";
   }
 
   if (code === "auth/email-not-verified") {
@@ -466,9 +466,9 @@ function getFirebaseErrorMessage(error: unknown) {
     case "auth/too-many-requests":
       return "Слишком много попыток. Попробуйте немного позже.";
     case "auth/network-request-failed":
-      return "Не удалось подключиться к Firebase. Проверьте интернет.";
+      return "Не удалось подключиться к Supabase. Проверьте интернет.";
     case "auth/operation-not-allowed":
-      return "Email/password вход не включен в настройках Firebase Auth.";
+      return "Email/password вход сейчас недоступен в Supabase Auth.";
     case "auth/popup-closed-by-user":
       return "Окно входа через Google было закрыто.";
     case "auth/popup-blocked":
@@ -476,7 +476,7 @@ function getFirebaseErrorMessage(error: unknown) {
     case "auth/cancelled-popup-request":
       return "Запрос на вход через Google был отменен.";
     case "auth/unauthorized-domain":
-      return `Домен ${currentHostname} не добавлен в Authorized domains в Firebase Auth. Добавьте только hostname без https и без /sakura.github.io.`;
+      return `Домен ${currentHostname} не разрешен для Supabase Auth redirect. Проверьте настройки callback URL.`;
     case "auth/account-exists-with-different-credential":
       return "Для этого email уже используется другой способ входа.";
     default:
@@ -484,7 +484,7 @@ function getFirebaseErrorMessage(error: unknown) {
         return error.message;
       }
 
-      return "Не удалось выполнить запрос к Firebase Auth. Попробуйте еще раз.";
+      return "Не удалось выполнить запрос к Supabase Auth. Попробуйте еще раз.";
   }
 }
 
@@ -604,7 +604,7 @@ function SakuraBackground() {
   /* const handleGoogleLogin = async () => {
     if (!window.sakuraFirebaseAuth) {
       setSubmitError(
-        authLoadError ?? "Firebase Auth еще не готов. Подождите пару секунд и попробуйте снова."
+        authLoadError ?? "Supabase Auth еще не готов. Подождите пару секунд и попробуйте снова."
       );
       return;
     }
@@ -773,7 +773,7 @@ function HeaderAuth() {
     const handleError = () => {
       setAuthLoadError(
         window.sakuraFirebaseAuthError ??
-          "Firebase Auth module did not load. Проверьте соединение и настройки Firebase."
+          "Auth module did not load. Проверьте соединение и настройки Supabase."
       );
     };
 
@@ -784,7 +784,7 @@ function HeaderAuth() {
         !window.sakuraFirebaseAuthError
       ) {
         setAuthLoadError(
-          "Firebase Auth module did not load. Проверьте соединение и настройки Firebase."
+          "Auth module did not load. Проверьте соединение и настройки Supabase."
         );
       }
     }, 4000);
@@ -839,7 +839,7 @@ function HeaderAuth() {
 
       if (!isCancelled && !window.sakuraFirebaseAuth && !window.sakuraFirebaseAuthError) {
         setAuthLoadError(
-          "Firebase Auth is taking too long to start. Refresh the page and try again."
+          "Auth runtime starts too slowly. Refresh the page and try again."
         );
       }
     };
@@ -1007,7 +1007,7 @@ function HeaderAuth() {
 
     if (!window.sakuraFirebaseAuth) {
       setVerificationError(
-        authLoadError ?? "Firebase Auth еще не готов. Подождите пару секунд и попробуйте снова."
+        authLoadError ?? "Supabase Auth еще не готов. Подождите пару секунд и попробуйте снова."
       );
       return;
     }
@@ -1036,7 +1036,7 @@ function HeaderAuth() {
 
     if (!window.sakuraFirebaseAuth) {
       setVerificationError(
-        authLoadError ?? "Firebase Auth еще не готов. Подождите пару секунд и попробуйте снова."
+        authLoadError ?? "Supabase Auth еще не готов. Подождите пару секунд и попробуйте снова."
       );
       return;
     }
@@ -1104,7 +1104,7 @@ function HeaderAuth() {
 
     if (!window.sakuraFirebaseAuth) {
       setSubmitError(
-        authLoadError ?? "Firebase Auth еще не готов. Подождите пару секунд и попробуйте снова."
+        authLoadError ?? "Supabase Auth еще не готов. Подождите пару секунд и попробуйте снова."
       );
       return;
     }
@@ -1211,7 +1211,7 @@ function HeaderAuth() {
   const handleLogout = async () => {
     if (!window.sakuraFirebaseAuth) {
       setFlashMessage(
-        authLoadError ?? "Firebase Auth еще не готов. Подождите пару секунд и попробуйте снова."
+        authLoadError ?? "Supabase Auth еще не готов. Подождите пару секунд и попробуйте снова."
       );
       return;
     }
@@ -1249,7 +1249,7 @@ function HeaderAuth() {
 
       if (!window.sakuraFirebaseAuth) {
         setSubmitError(
-          authLoadError ?? "Firebase Auth еще не готов. Подождите пару секунд и попробуйте снова."
+          authLoadError ?? "Supabase Auth еще не готов. Подождите пару секунд и попробуйте снова."
         );
         return;
       }

@@ -358,8 +358,8 @@ const getProfileActionErrorMessage = (error: unknown, fallback: string) => {
 };
 const getCommentWriteDeniedMessage = (hasMedia: boolean) =>
   hasMedia
-    ? "Comment media could not be saved. If attachments are enabled, allow mediaURL, mediaType, mediaPath, and mediaSize in profileComments rules."
-    : "Comment could not be saved. Check Firestore rules for profileComments.";
+    ? "Comment media could not be saved. Проверьте доступ к Supabase Storage и comment RPC."
+    : "Comment could not be saved. Проверьте Supabase policies и profile comment RPC.";
 const getSupabaseCommentMediaUnavailableMessage = () =>
   "Supabase media upload is not configured for this build yet. Add NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET to the deployed site build.";
 const getSupabaseAvatarUnavailableMessage = () =>
@@ -1442,7 +1442,7 @@ export default function ProfilePage() {
     const onError = () =>
       setAuthError(
         getWindowState().sakuraFirebaseAuthError ??
-          "Firebase Auth is still loading. Reload the page if this does not clear soon."
+          "Supabase Auth is still loading. Reload the page if this does not clear soon."
       );
     const timeoutId = window.setTimeout(() => {
       if (
@@ -1450,7 +1450,7 @@ export default function ProfilePage() {
         !getWindowState().sakuraStartFirebaseAuth &&
         !getWindowState().sakuraFirebaseAuthError
       )
-        setAuthError("Firebase Auth is still loading. Reload the page if this does not clear soon.");
+        setAuthError("Supabase Auth is still loading. Reload the page if this does not clear soon.");
     }, 12000);
     sync();
     window.addEventListener(AUTH_READY_EVENT, sync);
