@@ -1774,10 +1774,6 @@ export default function ProfilePage() {
   const canUseEnhancedAvatarMedia = canUseEnhancedAvatarMediaForRoles(activeProfile?.roles);
   const topProfileRole = profileRoles[0] ?? null;
   const profileHeadlineStyle = roleHeadlineStyle(topProfileRole);
-  const metaCardStyle = profileMetaCardStyle(topProfileRole);
-  const metaLabelStyle = profileMetaLabelStyle(topProfileRole);
-  const metaValueStyle = profileMetaValueStyle(topProfileRole);
-  const metaValuePillStyle = profileMetaValuePillStyle(topProfileRole);
   const normalizedProfileRoleSet = new Set(profileRoles.map((role) => normalizeRoleName(role)));
   const isCurrentAccountBanned = visibleCurrentUser?.isBanned === true;
   const subscriptionSummary = activeProfile?.isBanned === true
@@ -4146,42 +4142,16 @@ export default function ProfilePage() {
                   <span className={`inline-flex min-w-[104px] shrink-0 justify-center rounded-full border px-3 py-1 text-[10px] font-bold uppercase tracking-[0.18em] ${isActiveProfileOnline ? "border-[#1f3b2f] bg-[#0d1713] text-[#8ce5b2]" : "border-[#312228] bg-[#140d11] text-[#ffb7c5]"}`}>{isActiveProfileOnline ? "Online" : "Offline"}</span>
                   </div>
                   <div className="min-w-0 flex-1">
-                    <div className="flex flex-wrap items-start justify-between gap-4">
-                      <div className="min-w-0">
-                        <h1 style={profileHeadlineStyle} className="min-w-0 truncate text-3xl font-black uppercase tracking-tighter">{primaryName}</h1>
-                        {hasUsername ? <p className="mt-2 text-sm font-medium text-[#c7d4cc]">@{activeProfile.login}</p> : isOwner ? <p className="mt-2 text-sm text-gray-500">Login not set yet.</p> : null}
-                        {typeof activeProfile.profileId === "number" ? <div className="mt-3">
-                          <span style={roleBadgeTextStyle} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1 text-[10px] font-bold text-[#ffb7c5]">ID: {activeProfile.profileId}</span>
-                        </div> : null}
-                      </div>
-                      <div className="relative w-full overflow-hidden rounded-[24px] border border-[#5a2f3f]/55 bg-[radial-gradient(circle_at_top_left,rgba(255,183,197,0.22),transparent_60%),linear-gradient(180deg,#171014_0%,#0e0a0c_100%)] px-4 py-3 shadow-[0_0_24px_rgba(255,143,177,0.15)] sm:w-auto sm:min-w-[252px]">
-                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,183,197,0.14)_0%,transparent_42%,transparent_60%,rgba(255,183,197,0.1)_100%)] opacity-80" />
-                        <div className="relative">
-                          <div className="flex items-center justify-between gap-3">
-                            <p
-                              style={metaLabelStyle}
-                              className="font-mono text-[10px] uppercase tracking-[0.32em]"
-                            >
-                              Account Created
-                            </p>
-                            <span className="inline-flex shrink-0 items-center rounded-full border border-[#ffb7c5]/35 bg-[#1a1014] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5]">
-                              Since
-                            </span>
-                          </div>
-                          <div className="mt-2 flex items-center gap-2.5">
-                            <span
-                              aria-hidden="true"
-                              className="inline-flex h-2 w-2 shrink-0 rounded-full bg-[#ff9fbd] shadow-[0_0_12px_rgba(255,159,189,0.75)]"
-                            />
-                            <span
-                              style={metaValueStyle}
-                              className="inline-flex max-w-full items-center text-[12px] font-semibold leading-none sm:text-[13px]"
-                            >
-                              {formatTime(activeProfile.creationTime)}
-                            </span>
-                          </div>
-                        </div>
-                      </div>
+                    <div className="min-w-0">
+                      <h1 style={profileHeadlineStyle} className="min-w-0 truncate text-3xl font-black uppercase tracking-tighter">{primaryName}</h1>
+                      {hasUsername ? <p className="mt-2 text-sm font-medium text-[#c7d4cc]">@{activeProfile.login}</p> : isOwner ? <p className="mt-2 text-sm text-gray-500">Login not set yet.</p> : null}
+                      <p className="mt-2 inline-flex max-w-full items-center gap-2 text-[11px] text-[#b78a95]">
+                        <span aria-hidden="true" className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff9fbd] shadow-[0_0_10px_rgba(255,159,189,0.7)]" />
+                        <span className="truncate">Account created {formatTime(activeProfile.creationTime)}</span>
+                      </p>
+                      {typeof activeProfile.profileId === "number" ? <div className="mt-3">
+                        <span style={roleBadgeTextStyle} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1 text-[10px] font-bold text-[#ffb7c5]">ID: {activeProfile.profileId}</span>
+                      </div> : null}
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
                       {profileRoles.map((role) => <span key={role} title={roleBadgeLabel(role)} style={{ ...roleBadgeStyle(role), ...roleBadgeTextStyle }} className="inline-flex min-h-[26px] shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 py-1 text-[10px] font-bold"><span aria-hidden="true" className="inline-flex items-center">{renderRoleBadgeText(role)}</span></span>)}
