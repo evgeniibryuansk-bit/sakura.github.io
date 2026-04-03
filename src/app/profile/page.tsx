@@ -175,6 +175,9 @@ const PROFILE_THEME_SONG_BY_PROFILE_ID = new Map<number, string>([
 ]);
 const COMMENT_MEDIA_FILE_ACCEPT = ".png,.jpg,.jpeg,.webp,.gif,.mp4,.webm";
 const PRESENCE_ACTIVE_WINDOW_MS = 90 * 1000;
+const SITE_ONLINE_COUNT_REFRESH_INTERVAL_MS = 20 * 1000;
+const SITE_ONLINE_COUNT_REFRESH_DEBOUNCE_MS = 280;
+const PROFILE_THEME_TIMELINE_UPDATE_STEP_SECONDS = 0.24;
 const STALE_RUNTIME_RECOVERY_STORAGE_KEY = "sakura-stale-runtime-recovery-at";
 const STALE_RUNTIME_RECOVERY_COUNT_STORAGE_KEY = "sakura-stale-runtime-recovery-count";
 const STALE_RUNTIME_RECOVERY_COOLDOWN_MS = 5 * 60 * 1000;
@@ -1295,6 +1298,21 @@ export default function ProfilePage() {
   const editingCommentMediaInputRef = useRef<HTMLInputElement | null>(null);
   const ownerUsernameInputRef = useRef<HTMLInputElement | null>(null);
   const adminUsernameInputRef = useRef<HTMLInputElement | null>(null);
+  const currentUserIdentitySignature = currentUser
+    ? `${currentUser.uid}:${currentUser.isAnonymous ? "1" : "0"}:${currentUser.profileId ?? ""}`
+    : "guest";
+  const currentUserProfileSnapshotSignature = currentUser
+    ? [
+        currentUser.login ?? "",
+        currentUser.displayName ?? "",
+        currentUser.photoURL ?? "",
+        currentUser.avatarPath ?? "",
+        currentUser.roles?.join(",") ?? "",
+        currentUser.emailVerified === false ? "0" : "1",
+        currentUser.verificationRequired === false ? "0" : "1",
+        currentUser.isBanned === true ? "1" : "0",
+      ].join("|")
+    : "none";
 
   const syncTextareaHeight = (element: HTMLTextAreaElement | null) => {
     if (!element) return;
@@ -1510,7 +1528,14 @@ export default function ProfilePage() {
         setProfileError(error instanceof Error ? error.message : "Could not load this profile.");
       })
       .finally(() => setIsProfileLoading(false));
-  }, [authReady, authStateSettled, authError, currentUser, requestedProfileId]);
+  }, [
+    authReady,
+    authStateSettled,
+    authError,
+    requestedProfileId,
+    currentUserIdentitySignature,
+    currentUserProfileSnapshotSignature,
+  ]);
 
   useEffect(() => {
     if (
@@ -1529,6 +1554,7 @@ export default function ProfilePage() {
 
     let isCancelled = false;
     let isRefreshing = false;
+    let refreshDebounceTimeoutId: number | null = null;
     const refreshSiteOnlineCount = async () => {
       if (isRefreshing) {
         return;
@@ -1545,7 +1571,9 @@ export default function ProfilePage() {
         const nextCount = await bridge.getSiteOnlineCount();
 
         if (!isCancelled) {
-          setSiteOnlineCount(nextCount);
+          setSiteOnlineCount((currentCount) =>
+            currentCount === nextCount ? currentCount : nextCount
+          );
           writeCachedSiteOnlineCount(nextCount);
         }
       } catch (error) {
@@ -1554,36 +1582,46 @@ export default function ProfilePage() {
       }
     };
 
-    const handleRefreshRequest = () => {
-      void refreshSiteOnlineCount();
+    const scheduleRefresh = () => {
+      if (refreshDebounceTimeoutId !== null) {
+        window.clearTimeout(refreshDebounceTimeoutId);
+      }
+
+      refreshDebounceTimeoutId = window.setTimeout(() => {
+        refreshDebounceTimeoutId = null;
+        void refreshSiteOnlineCount();
+      }, SITE_ONLINE_COUNT_REFRESH_DEBOUNCE_MS);
     };
 
     const handleVisibilityChange = () => {
       if (document.visibilityState !== "hidden") {
-        void refreshSiteOnlineCount();
+        scheduleRefresh();
       }
     };
 
     void refreshSiteOnlineCount();
     const intervalId = window.setInterval(() => {
-      void refreshSiteOnlineCount();
-    }, 10000);
+      if (document.visibilityState === "hidden") {
+        return;
+      }
 
-    window.addEventListener(USER_UPDATE_EVENT, handleRefreshRequest);
-    window.addEventListener(PRESENCE_DIRTY_EVENT, handleRefreshRequest);
-    window.addEventListener("pageshow", handleRefreshRequest);
-    window.addEventListener("online", handleRefreshRequest);
-    window.addEventListener("offline", handleRefreshRequest);
+      void refreshSiteOnlineCount();
+    }, SITE_ONLINE_COUNT_REFRESH_INTERVAL_MS);
+
+    window.addEventListener(USER_UPDATE_EVENT, scheduleRefresh);
+    window.addEventListener(PRESENCE_DIRTY_EVENT, scheduleRefresh);
+    window.addEventListener("pageshow", scheduleRefresh);
     document.addEventListener("visibilitychange", handleVisibilityChange);
 
     return () => {
       isCancelled = true;
       window.clearInterval(intervalId);
-      window.removeEventListener(USER_UPDATE_EVENT, handleRefreshRequest);
-      window.removeEventListener(PRESENCE_DIRTY_EVENT, handleRefreshRequest);
-      window.removeEventListener("pageshow", handleRefreshRequest);
-      window.removeEventListener("online", handleRefreshRequest);
-      window.removeEventListener("offline", handleRefreshRequest);
+      if (refreshDebounceTimeoutId !== null) {
+        window.clearTimeout(refreshDebounceTimeoutId);
+      }
+      window.removeEventListener(USER_UPDATE_EVENT, scheduleRefresh);
+      window.removeEventListener(PRESENCE_DIRTY_EVENT, scheduleRefresh);
+      window.removeEventListener("pageshow", scheduleRefresh);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
     };
   }, [authReady]);
@@ -1669,27 +1707,60 @@ export default function ProfilePage() {
       return;
     }
 
-    const syncAudioState = () => {
-      setProfileThemeIsPlaying(!audio.paused);
-      setProfileThemeCurrentTime(audio.currentTime || 0);
-      setProfileThemeDuration(audio.duration || 0);
+    let animationFrameId: number | null = null;
+    const syncAudioState = (force = false) => {
+      const nextIsPlaying = !audio.paused;
+      const nextCurrentTime = Number.isFinite(audio.currentTime) ? audio.currentTime : 0;
+      const nextDuration = Number.isFinite(audio.duration) ? audio.duration : 0;
+
+      setProfileThemeIsPlaying((currentValue) =>
+        currentValue === nextIsPlaying ? currentValue : nextIsPlaying
+      );
+      setProfileThemeCurrentTime((currentValue) =>
+        force || Math.abs(currentValue - nextCurrentTime) >= PROFILE_THEME_TIMELINE_UPDATE_STEP_SECONDS
+          ? nextCurrentTime
+          : currentValue
+      );
+      setProfileThemeDuration((currentValue) =>
+        force || Math.abs(currentValue - nextDuration) >= PROFILE_THEME_TIMELINE_UPDATE_STEP_SECONDS
+          ? nextDuration
+          : currentValue
+      );
+    };
+    const syncAudioTimelineState = () => {
+      if (animationFrameId !== null) {
+        return;
+      }
+
+      animationFrameId = window.requestAnimationFrame(() => {
+        animationFrameId = null;
+        syncAudioState(false);
+      });
     };
 
-    syncAudioState();
-    audio.addEventListener("play", syncAudioState);
-    audio.addEventListener("pause", syncAudioState);
-    audio.addEventListener("timeupdate", syncAudioState);
-    audio.addEventListener("loadedmetadata", syncAudioState);
-    audio.addEventListener("durationchange", syncAudioState);
-    audio.addEventListener("ended", syncAudioState);
+    const syncAudioStateImmediate = () => {
+      syncAudioState(true);
+    };
+
+    syncAudioStateImmediate();
+    audio.addEventListener("play", syncAudioStateImmediate);
+    audio.addEventListener("pause", syncAudioStateImmediate);
+    audio.addEventListener("timeupdate", syncAudioTimelineState);
+    audio.addEventListener("loadedmetadata", syncAudioStateImmediate);
+    audio.addEventListener("durationchange", syncAudioStateImmediate);
+    audio.addEventListener("ended", syncAudioStateImmediate);
 
     return () => {
-      audio.removeEventListener("play", syncAudioState);
-      audio.removeEventListener("pause", syncAudioState);
-      audio.removeEventListener("timeupdate", syncAudioState);
-      audio.removeEventListener("loadedmetadata", syncAudioState);
-      audio.removeEventListener("durationchange", syncAudioState);
-      audio.removeEventListener("ended", syncAudioState);
+      if (animationFrameId !== null) {
+        window.cancelAnimationFrame(animationFrameId);
+      }
+
+      audio.removeEventListener("play", syncAudioStateImmediate);
+      audio.removeEventListener("pause", syncAudioStateImmediate);
+      audio.removeEventListener("timeupdate", syncAudioTimelineState);
+      audio.removeEventListener("loadedmetadata", syncAudioStateImmediate);
+      audio.removeEventListener("durationchange", syncAudioStateImmediate);
+      audio.removeEventListener("ended", syncAudioStateImmediate);
     };
   }, [profileThemeSongSrc]);
 
