@@ -584,7 +584,7 @@ const redirectToLocalProfile = (requestedProfileId: number, currentProfileId: nu
 };
 const formatTime = (value: string | null) =>
   value
-    ? new Intl.DateTimeFormat("ru-RU", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
+    ? new Intl.DateTimeFormat("en-US", { dateStyle: "medium", timeStyle: "short" }).format(new Date(value))
     : "Not available";
 const isUserLikeRole = (role: string) => /^u(?:[\s_-]*s)?[\s_-]*e[\s_-]*r$/i.test(role.trim());
 const toCompactRoleToken = (role: string) =>
