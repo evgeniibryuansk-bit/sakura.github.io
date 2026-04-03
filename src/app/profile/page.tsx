@@ -4154,23 +4154,32 @@ export default function ProfilePage() {
                           <span style={roleBadgeTextStyle} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1 text-[10px] font-bold text-[#ffb7c5]">ID: {activeProfile.profileId}</span>
                         </div> : null}
                       </div>
-                      <div
-                        style={metaCardStyle}
-                        className="w-full rounded-[22px] border px-4 py-3 text-center backdrop-blur-sm sm:w-auto sm:min-w-[220px]"
-                      >
-                        <p
-                          style={metaLabelStyle}
-                          className="font-mono text-[10px] uppercase tracking-[0.32em]"
-                        >
-                          Account Created
-                        </p>
-                        <div className="mt-2 flex justify-center">
-                          <span
-                            style={metaValueStyle}
-                            className="inline-flex max-w-full items-center text-[12px] leading-none sm:text-[13px]"
-                          >
-                            {formatTime(activeProfile.creationTime)}
-                          </span>
+                      <div className="relative w-full overflow-hidden rounded-[24px] border border-[#5a2f3f]/55 bg-[radial-gradient(circle_at_top_left,rgba(255,183,197,0.22),transparent_60%),linear-gradient(180deg,#171014_0%,#0e0a0c_100%)] px-4 py-3 shadow-[0_0_24px_rgba(255,143,177,0.15)] sm:w-auto sm:min-w-[252px]">
+                        <div className="pointer-events-none absolute inset-0 bg-[linear-gradient(120deg,rgba(255,183,197,0.14)_0%,transparent_42%,transparent_60%,rgba(255,183,197,0.1)_100%)] opacity-80" />
+                        <div className="relative">
+                          <div className="flex items-center justify-between gap-3">
+                            <p
+                              style={metaLabelStyle}
+                              className="font-mono text-[10px] uppercase tracking-[0.32em]"
+                            >
+                              Account Created
+                            </p>
+                            <span className="inline-flex shrink-0 items-center rounded-full border border-[#ffb7c5]/35 bg-[#1a1014] px-2 py-0.5 text-[9px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5]">
+                              Since
+                            </span>
+                          </div>
+                          <div className="mt-2 flex items-center gap-2.5">
+                            <span
+                              aria-hidden="true"
+                              className="inline-flex h-2 w-2 shrink-0 rounded-full bg-[#ff9fbd] shadow-[0_0_12px_rgba(255,159,189,0.75)]"
+                            />
+                            <span
+                              style={metaValueStyle}
+                              className="inline-flex max-w-full items-center text-[12px] font-semibold leading-none sm:text-[13px]"
+                            >
+                              {formatTime(activeProfile.creationTime)}
+                            </span>
+                          </div>
                         </div>
                       </div>
                     </div>
