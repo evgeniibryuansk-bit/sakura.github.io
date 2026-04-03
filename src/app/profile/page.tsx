@@ -218,6 +218,8 @@ const hasCurrentFirebaseAuthRuntime = (runtime: RuntimeWindow) =>
   runtime.sakuraFirebaseAuth?.__runtimeVersion === FIREBASE_AUTH_RUNTIME_VERSION;
 const getErrorMessage = (error: unknown) =>
   error instanceof Error ? error.message : typeof error === "string" ? error : "";
+const isNetworkFetchError = (error: unknown) =>
+  error instanceof TypeError && /fetch|networkerror/i.test(error.message);
 const isRecoverableStaleRuntimeError = (error: unknown) =>
   STALE_RUNTIME_ERROR_PATTERNS.some((pattern) => pattern.test(getErrorMessage(error)));
 const recoverFromStaleRuntime = () => {
@@ -309,6 +311,10 @@ const isPresenceOnlineNow = (presence: UserProfile["presence"] | null | undefine
   );
 };
 const getProfileActionErrorMessage = (error: unknown, fallback: string) => {
+  if (isNetworkFetchError(error)) {
+    return "Storage is temporarily unreachable. Try again in a moment.";
+  }
+
   const code = getErrorCode(error);
 
   if (code === "auth/too-many-requests") {
@@ -3940,11 +3946,6 @@ export default function ProfilePage() {
       return;
     }
 
-    if (nextCommentMediaFile && (!isSupabaseConfigured || !visibleCurrentUser?.uid)) {
-      setCommentError(getSupabaseCommentMediaUnavailableMessage());
-      return;
-    }
-
     setCommentError(null);
     setCommentSuccess(null);
     setIsCommentSubmitting(true);
@@ -3985,13 +3986,23 @@ export default function ProfilePage() {
 
     try {
       let nextMedia: File | CommentMediaPayload | null = nextCommentMediaFile;
+      let usedInlineMediaFallback = false;
 
       if (nextCommentMediaFile && isSupabaseConfigured && visibleCurrentUser?.uid) {
-        uploadedMedia = await uploadSupabaseCommentMedia(
-          nextCommentMediaFile,
-          visibleCurrentUser.uid
-        );
-        nextMedia = toCommentMediaPayload(uploadedMedia);
+        try {
+          uploadedMedia = await uploadSupabaseCommentMedia(
+            nextCommentMediaFile,
+            visibleCurrentUser.uid
+          );
+          nextMedia = toCommentMediaPayload(uploadedMedia);
+        } catch (error) {
+          if (isNetworkFetchError(error)) {
+            nextMedia = nextCommentMediaFile;
+            usedInlineMediaFallback = true;
+          } else {
+            throw error;
+          }
+        }
       }
 
       const savedComment = await bridge.addProfileComment(
@@ -4005,7 +4016,11 @@ export default function ProfilePage() {
           (comment) => comment.id !== savedComment.id && comment.id !== pendingCommentId
         ),
       ]);
-      setCommentSuccess("Comment posted.");
+      setCommentSuccess(
+        usedInlineMediaFallback
+          ? "Comment posted. Attachment used compatibility mode while storage was unreachable."
+          : "Comment posted."
+      );
     } catch (error) {
       if (uploadedMedia && shouldCleanupUploadedMedia(uploadedMedia)) {
         void deleteSupabaseCommentMedia(uploadedMedia.path).catch((cleanupError) => {
@@ -4191,8 +4206,15 @@ export default function ProfilePage() {
     const bridge = getWindowState().sakuraFirebaseAuth;
     const nextMessage = editingCommentMessage.trim();
     const currentComment = comments.find((comment) => comment.id === commentId) ?? null;
+    const hasExistingCommentMedia = Boolean(
+      currentComment &&
+        (
+          (typeof currentComment.mediaURL === "string" && currentComment.mediaURL.trim()) ||
+          (typeof currentComment.mediaPath === "string" && currentComment.mediaPath.trim())
+        )
+    );
     const willKeepExistingMedia =
-      Boolean(currentComment?.mediaURL) &&
+      hasExistingCommentMedia &&
       !editingCommentMediaFile &&
       !isEditingCommentMediaRemoved;
     const willHaveMedia = Boolean(editingCommentMediaFile) || willKeepExistingMedia;
@@ -4206,11 +4228,6 @@ export default function ProfilePage() {
       return;
     }
 
-    if (editingCommentMediaFile && (!isSupabaseConfigured || !visibleCurrentUser?.uid)) {
-      setCommentError(getSupabaseCommentMediaUnavailableMessage());
-      return;
-    }
-
     setCommentError(null);
     setCommentSuccess(null);
     setIsCommentUpdating(true);
@@ -4219,13 +4236,23 @@ export default function ProfilePage() {
 
     try {
       let nextMedia: File | CommentMediaPayload | null = editingCommentMediaFile;
+      let usedInlineMediaFallback = false;
 
       if (editingCommentMediaFile && isSupabaseConfigured && visibleCurrentUser?.uid) {
-        uploadedMedia = await uploadSupabaseCommentMedia(
-          editingCommentMediaFile,
-          visibleCurrentUser.uid
-        );
-        nextMedia = toCommentMediaPayload(uploadedMedia);
+        try {
+          uploadedMedia = await uploadSupabaseCommentMedia(
+            editingCommentMediaFile,
+            visibleCurrentUser.uid
+          );
+          nextMedia = toCommentMediaPayload(uploadedMedia);
+        } catch (error) {
+          if (isNetworkFetchError(error)) {
+            nextMedia = editingCommentMediaFile;
+            usedInlineMediaFallback = true;
+          } else {
+            throw error;
+          }
+        }
       }
 
       const updatedComment = await bridge.updateProfileComment(
@@ -4260,7 +4287,11 @@ export default function ProfilePage() {
       if (editingCommentMediaInputRef.current) {
         editingCommentMediaInputRef.current.value = "";
       }
-      setCommentSuccess("Comment updated.");
+      setCommentSuccess(
+        usedInlineMediaFallback
+          ? "Comment updated. Attachment used compatibility mode while storage was unreachable."
+          : "Comment updated."
+      );
 
       if (currentComment?.mediaPath && (Boolean(uploadedMedia?.path) || isEditingCommentMediaRemoved)) {
         void deleteCommentMediaIfUnused(bridge, currentComment.mediaPath).catch((cleanupError) => {
@@ -4278,7 +4309,7 @@ export default function ProfilePage() {
         getErrorCode(error) === "comments/write-denied"
           ? getCommentWriteDeniedMessage(
               Boolean(editingCommentMediaFile) ||
-              Boolean(currentComment?.mediaURL && !isEditingCommentMediaRemoved)
+              Boolean(hasExistingCommentMedia && !isEditingCommentMediaRemoved)
             )
           : getProfileActionErrorMessage(error, "Could not update this comment.")
       );
