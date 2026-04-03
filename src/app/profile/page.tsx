@@ -4208,9 +4208,10 @@ export default function ProfilePage() {
                         <span aria-hidden="true" className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff9fbd] shadow-[0_0_10px_rgba(255,159,189,0.7)]" />
                         <span className="truncate">Account created {formatTime(activeProfile.creationTime)}</span>
                       </p>
-                      {typeof activeProfile.profileId === "number" ? <div className="mt-3">
-                        <span style={roleBadgeTextStyle} className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1 text-[10px] font-bold text-[#ffb7c5]">ID: {activeProfile.profileId}</span>
-                      </div> : null}
+                      {typeof activeProfile.profileId === "number" ? <p className="mt-1.5 inline-flex max-w-full items-center gap-2 text-[11px] text-[#b78a95]">
+                        <span aria-hidden="true" className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff9fbd] shadow-[0_0_10px_rgba(255,159,189,0.7)]" />
+                        <span className="truncate">ID: {activeProfile.profileId}</span>
+                      </p> : null}
                     </div>
                     <div className="mt-4 flex flex-wrap items-center gap-3">
                       {profileRoles.map((role) => <span key={role} title={roleBadgeLabel(role)} style={{ ...roleBadgeStyle(role), ...roleBadgeTextStyle }} className="inline-flex min-h-[26px] shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 py-1 text-[10px] font-bold"><span aria-hidden="true" className="inline-flex items-center">{renderRoleBadgeText(role)}</span></span>)}
