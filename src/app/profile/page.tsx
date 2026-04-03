@@ -14,7 +14,11 @@ import {
   uploadSupabaseCommentMedia,
   type SupabaseCommentMediaUploadResult,
 } from "@/lib/supabase-storage";
-import { getSupabasePublicObjectUrl, isSupabaseConfigured } from "@/lib/supabase";
+import {
+  getSupabasePublicObjectUrl,
+  getSupabaseRenderedImageUrl,
+  isSupabaseConfigured,
+} from "@/lib/supabase";
 import { readCachedAuthSnapshot } from "@/lib/auth-snapshot-cache";
 import { readCachedProfileSnapshot, writeCachedProfileSnapshot } from "@/lib/profile-cache";
 import { readCachedProfileComments, writeCachedProfileComments } from "@/lib/profile-comments-cache";
@@ -585,6 +589,42 @@ const resolveCommentMediaUrl = (
 
   const mediaURL = typeof comment.mediaURL === "string" ? comment.mediaURL.trim() : "";
   return mediaURL || null;
+};
+const COMMENT_RENDERABLE_IMAGE_MEDIA_TYPES = new Set([
+  "image/jpeg",
+  "image/jpg",
+  "image/png",
+  "image/webp",
+]);
+const isRenderableCommentImageMediaType = (value: string | null | undefined) =>
+  typeof value === "string" &&
+  COMMENT_RENDERABLE_IMAGE_MEDIA_TYPES.has(value.trim().toLowerCase());
+const isRenderableCommentImagePath = (value: string | null | undefined) =>
+  typeof value === "string" && /\.(jpe?g|png|webp)(?:$|[?#])/i.test(value.trim());
+const resolveCommentMediaDisplayUrl = (
+  comment: Pick<ProfileComment, "mediaPath" | "mediaType" | "mediaURL">
+) => {
+  const mediaPath = typeof comment.mediaPath === "string" ? comment.mediaPath.trim() : "";
+
+  if (
+    mediaPath &&
+    (
+      isRenderableCommentImageMediaType(comment.mediaType) ||
+      isRenderableCommentImagePath(mediaPath)
+    )
+  ) {
+    const renderedImageUrl = getSupabaseRenderedImageUrl(mediaPath, {
+      width: 960,
+      quality: 72,
+      resize: "contain",
+    });
+
+    if (renderedImageUrl) {
+      return renderedImageUrl;
+    }
+  }
+
+  return resolveCommentMediaUrl(comment);
 };
 const hasProfileAvatarReference = (profile: UserProfile | null | undefined) =>
   Boolean(
@@ -4751,6 +4791,7 @@ export default function ProfilePage() {
                       const resolvedCommentAuthorRole = resolveCommentAuthorRole(comment);
                       const resolvedCommentAuthorPhotoURL = resolveCommentAuthorPhotoURL(comment);
                       const resolvedCommentMediaURL = resolveCommentMediaUrl(comment);
+                      const resolvedCommentMediaDisplayURL = resolveCommentMediaDisplayUrl(comment);
                       const hasCommentMediaMetadata = Boolean(
                         (typeof comment.mediaPath === "string" && comment.mediaPath.trim()) ||
                           (typeof comment.mediaURL === "string" && comment.mediaURL.trim()) ||
@@ -4851,7 +4892,7 @@ export default function ProfilePage() {
                             <CommentMediaFrame src={editingCommentMediaPreviewUrl} mediaType={editingCommentMediaFile?.type ?? null} alt="Updated comment media preview" className="block max-h-[320px] w-full object-contain" />
                           </div> : null}
                           {!editingCommentMediaPreviewUrl && !isEditingCommentMediaRemoved && resolvedCommentMediaURL ? <div className="mt-3 overflow-hidden rounded-[22px] border border-[#232323] bg-[#050505]">
-                            <CommentMediaFrame src={resolvedCommentMediaURL} mediaType={comment.mediaType} alt={`${comment.authorName} comment attachment`} className="block max-h-[320px] w-full object-contain" controls={isCommentVideoMediaType(comment.mediaType)} />
+                            <CommentMediaFrame src={resolvedCommentMediaDisplayURL ?? resolvedCommentMediaURL} mediaType={comment.mediaType} alt={`${comment.authorName} comment attachment`} className="block max-h-[320px] w-full object-contain" controls={isCommentVideoMediaType(comment.mediaType)} />
                           </div> : null}
                           {!editingCommentMediaPreviewUrl && !isEditingCommentMediaRemoved && isCommentAttachmentUnavailable ? <div className="mt-3 rounded-[18px] border border-[#4d3024] bg-[linear-gradient(180deg,#1a110d_0%,#120d0a_100%)] px-3 py-2">
                             <p className="text-xs leading-relaxed text-[#f3d2c5]">Attachment unavailable. Re-upload media to restore this comment attachment.</p>
@@ -4873,7 +4914,9 @@ export default function ProfilePage() {
                         </div> : <div className="mt-3 space-y-3">
                           {comment.message ? <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-gray-300">{renderCommentMessageWithMentions(comment.message)}</p> : null}
                           {resolvedCommentMediaURL ? <div className="overflow-hidden rounded-[22px] border border-[#232323] bg-[#050505]">
-                            <CommentMediaFrame src={resolvedCommentMediaURL} mediaType={comment.mediaType} alt={`${comment.authorName} comment attachment`} className="block max-h-[360px] w-full object-contain" controls={isCommentVideoMediaType(comment.mediaType)} />
+                            <a href={resolvedCommentMediaURL} target="_blank" rel="noreferrer" className="block">
+                              <CommentMediaFrame src={resolvedCommentMediaDisplayURL ?? resolvedCommentMediaURL} mediaType={comment.mediaType} alt={`${comment.authorName} comment attachment`} className="block max-h-[360px] w-full object-contain" controls={isCommentVideoMediaType(comment.mediaType)} />
+                            </a>
                           </div> : null}
                           {isCommentAttachmentUnavailable ? <div className="rounded-[18px] border border-[#4d3024] bg-[linear-gradient(180deg,#1a110d_0%,#120d0a_100%)] px-3 py-2">
                             <p className="text-xs leading-relaxed text-[#f3d2c5]">Attachment unavailable.</p>
