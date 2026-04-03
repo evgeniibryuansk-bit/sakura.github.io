@@ -1293,11 +1293,6 @@ export default function ProfilePage() {
   const [isProfileThemePanelOpen, setIsProfileThemePanelOpen] = useState(false);
   const [previousProfileId, setPreviousProfileId] = useState<number | null>(null);
   const [nextProfileId, setNextProfileId] = useState<number | null>(null);
-  const [profileSearchQuery, setProfileSearchQuery] = useState("");
-  const [profileSearchResults, setProfileSearchResults] = useState<UserProfile[]>([]);
-  const [isProfileSearchLoading, setIsProfileSearchLoading] = useState(false);
-  const [profileSearchError, setProfileSearchError] = useState<string | null>(null);
-  const [profileSearchFeedback, setProfileSearchFeedback] = useState<string | null>(null);
   const commentTextareaRef = useRef<HTMLTextAreaElement | null>(null);
   const profileThemeAudioRef = useRef<HTMLAudioElement | null>(null);
   const profileThemeAutoplayAttemptedRef = useRef<string | null>(null);
@@ -4206,117 +4201,6 @@ export default function ProfilePage() {
       profileThemeAudioRef.current.volume = normalizedVolume;
     }
   };
-  const handleProfileSearchSubmit = async (event: FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const bridge = getWindowState().sakuraFirebaseAuth;
-    const rawQuery = profileSearchQuery.trim();
-    const normalizedQuery = rawQuery.replace(/^@+/, "");
-
-    if (!normalizedQuery) {
-      setProfileSearchResults([]);
-      setProfileSearchFeedback(null);
-      setProfileSearchError("Enter UID, login, or username.");
-      return;
-    }
-
-    if (!bridge) {
-      setProfileSearchResults([]);
-      setProfileSearchFeedback(null);
-      setProfileSearchError("Profile search is unavailable right now.");
-      return;
-    }
-
-    setIsProfileSearchLoading(true);
-    setProfileSearchError(null);
-    setProfileSearchFeedback(null);
-
-    try {
-      const collectedProfiles = new Map<string, UserProfile>();
-      const collectProfile = (candidate: UserProfile | null | undefined) => {
-        if (!candidate || typeof candidate.profileId !== "number") {
-          return;
-        }
-
-        const profileKey = candidate.uid || `profile-${candidate.profileId}`;
-
-        if (!collectedProfiles.has(profileKey)) {
-          collectedProfiles.set(profileKey, candidate);
-        }
-      };
-
-      if (/^\d+$/.test(normalizedQuery)) {
-        collectProfile(await bridge.getProfileById(Number.parseInt(normalizedQuery, 10)));
-      } else {
-        const [loginMatches, nameMatch, mentionNameMatch] = await Promise.all([
-          bridge.getProfilesByLoginPrefix(normalizedQuery).catch(() => []),
-          bridge.getProfileByAuthorName(normalizedQuery).catch(() => null),
-          bridge.getProfileByAuthorName(`@${normalizedQuery}`).catch(() => null),
-        ]);
-
-        (Array.isArray(loginMatches) ? loginMatches : []).forEach((candidate) =>
-          collectProfile(candidate)
-        );
-        collectProfile(nameMatch);
-        collectProfile(mentionNameMatch);
-      }
-
-      const loweredQuery = normalizedQuery.toLowerCase();
-      const scoredProfiles = [...collectedProfiles.values()]
-        .map((candidate) => {
-          const login = (candidate.login ?? "").toLowerCase();
-          const displayName = (candidate.displayName ?? "").toLowerCase();
-          const uidText = String(candidate.profileId ?? "");
-          let score = 0;
-
-          if (uidText === normalizedQuery) {
-            score += 180;
-          }
-          if (login === loweredQuery) {
-            score += 140;
-          } else if (login.startsWith(loweredQuery)) {
-            score += 90;
-          } else if (login.includes(loweredQuery)) {
-            score += 40;
-          }
-          if (displayName === loweredQuery) {
-            score += 120;
-          } else if (displayName.startsWith(loweredQuery)) {
-            score += 70;
-          } else if (displayName.includes(loweredQuery)) {
-            score += 30;
-          }
-
-          return { candidate, score };
-        })
-        .sort((left, right) => {
-          if (right.score !== left.score) {
-            return right.score - left.score;
-          }
-
-          return (left.candidate.profileId ?? 0) - (right.candidate.profileId ?? 0);
-        })
-        .map((entry) => entry.candidate);
-
-      setProfileSearchResults(scoredProfiles);
-      setProfileSearchFeedback(
-        scoredProfiles.length
-          ? scoredProfiles.length === 1
-            ? "1 account found."
-            : `${scoredProfiles.length} accounts found.`
-          : "No accounts found."
-      );
-    } catch (error) {
-      setProfileSearchResults([]);
-      setProfileSearchFeedback(null);
-      setProfileSearchError(
-        error instanceof Error ? error.message : "Could not search profiles right now."
-      );
-    } finally {
-      setIsProfileSearchLoading(false);
-    }
-  };
-
   return (
     <main
       data-profile-build={PROFILE_BUILD_MARKER}
@@ -4365,12 +4249,18 @@ export default function ProfilePage() {
         {hasHydrated && authReady && !authError && !isProfileLoading && !activeProfile && profileError ? <section className="rounded-[32px] border border-[#201517] bg-[#0d0d0d] px-8 py-12 shadow-[0_0_60px_rgba(255,183,197,0.06)]"><p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">{requestedProfileId ? "Profile Missing" : "Guest State"}</p><p className="mt-4 text-sm leading-relaxed text-gray-400">{profileError}</p></section> : null}
 
         {activeProfile ? (
-          <section className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,64fr)_minmax(0,36fr)] lg:items-start">
-            <div className="relative w-full self-start overflow-hidden rounded-[34px] border border-[#201517] bg-[#0d0d0d] shadow-[0_0_80px_rgba(255,183,197,0.06)]">
-              {previousProfileId ? <a href={profilePath(previousProfileId)} aria-label="Open previous account" className="absolute left-0 top-[136px] z-20 hidden h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#140d11] text-lg text-[#ffb7c5] shadow-[0_0_18px_rgba(255,183,197,0.14)] transition hover:border-[#ffb7c5]/50 hover:text-white lg:inline-flex">
+          <section className="relative grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,64fr)_minmax(0,36fr)] lg:items-start">
+            {previousProfileId ? <a href={profilePath(previousProfileId)} aria-label="Open previous account" className="absolute left-0 top-[96px] z-0 hidden h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#140d11] text-lg text-[#ffb7c5] shadow-[0_0_18px_rgba(255,183,197,0.14)] transition hover:border-[#ffb7c5]/50 hover:text-white lg:inline-flex">
+              ←
+            </a> : null}
+            {nextProfileId ? <a href={profilePath(nextProfileId)} aria-label="Open next account" className="absolute right-0 top-[96px] z-0 hidden h-11 w-11 translate-x-1/2 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#140d11] text-lg text-[#ffb7c5] shadow-[0_0_18px_rgba(255,183,197,0.14)] transition hover:border-[#ffb7c5]/50 hover:text-white lg:inline-flex">
+              →
+            </a> : null}
+            <div className="relative z-10 w-full self-start overflow-hidden rounded-[34px] border border-[#201517] bg-[#0d0d0d] shadow-[0_0_80px_rgba(255,183,197,0.06)]">
+              {false && previousProfileId ? <a href={profilePath(previousProfileId ?? 0)} aria-label="Open previous account" className="absolute left-0 top-[136px] z-20 hidden h-11 w-11 -translate-x-1/2 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#140d11] text-lg text-[#ffb7c5] shadow-[0_0_18px_rgba(255,183,197,0.14)] transition hover:border-[#ffb7c5]/50 hover:text-white lg:inline-flex">
                 ←
               </a> : null}
-              {nextProfileId ? <a href={profilePath(nextProfileId)} aria-label="Open next account" className="absolute right-0 top-[136px] z-20 hidden h-11 w-11 translate-x-1/2 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#140d11] text-lg text-[#ffb7c5] shadow-[0_0_18px_rgba(255,183,197,0.14)] transition hover:border-[#ffb7c5]/50 hover:text-white lg:inline-flex">
+              {false && nextProfileId ? <a href={profilePath(nextProfileId ?? 0)} aria-label="Open next account" className="absolute right-0 top-[136px] z-20 hidden h-11 w-11 translate-x-1/2 items-center justify-center rounded-full border border-[#2b1b1e] bg-[#140d11] text-lg text-[#ffb7c5] shadow-[0_0_18px_rgba(255,183,197,0.14)] transition hover:border-[#ffb7c5]/50 hover:text-white lg:inline-flex">
                 →
               </a> : null}
               <div className="border-b border-[#1b1b1b] bg-[radial-gradient(circle_at_top,rgba(255,183,197,0.16),transparent_55%)] px-8 py-8">
@@ -4418,7 +4308,8 @@ export default function ProfilePage() {
               </div>
             </div>
 
-            <div className="flex w-full flex-col gap-6 self-start">
+            <div className="relative z-10 flex w-full flex-col gap-6 self-start">
+              {/*
               <div className="rounded-[32px] border border-[#201517] bg-[radial-gradient(circle_at_top,rgba(255,183,197,0.12),transparent_70%),linear-gradient(180deg,#0d0d0d_0%,#090909_100%)] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Profile Navigator</p>
                 <div className="mt-4 flex flex-wrap items-center gap-3">
@@ -4461,6 +4352,7 @@ export default function ProfilePage() {
                   ))}
                 </div> : null}
               </div>
+              */}
               {isOwner && activeProfile && (!isProfileControlsOpen || activeProfile.isBanned) ? <div className="rounded-[32px] border border-[#201517] bg-[radial-gradient(circle_at_top,rgba(255,183,197,0.14),transparent_72%),linear-gradient(180deg,#0d0d0d_0%,#090909_100%)] px-7 py-7 shadow-[0_0_60px_rgba(255,183,197,0.06)]">
                 <div className="flex items-center justify-between gap-3">
                   <p className="font-mono text-[10px] uppercase tracking-[0.4em] text-[#ffb7c5]">Profile Settings</p>
