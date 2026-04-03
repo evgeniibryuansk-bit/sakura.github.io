@@ -1303,12 +1303,42 @@
 
   const SUPABASE_PUBLIC_URL = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_URL ?? "")};
   const SUPABASE_PUBLIC_ANON_KEY = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "")};
+  const SUPABASE_STORAGE_BUCKET = ${JSON.stringify(process.env.NEXT_PUBLIC_SUPABASE_STORAGE_BUCKET ?? "")};
   const SUPABASE_REST_URL = SUPABASE_PUBLIC_URL
     ? SUPABASE_PUBLIC_URL.replace(/\\/+$/, "") + "/rest/v1"
     : "";
   const SUPABASE_PUBLIC_READS_ENABLED = Boolean(
     SUPABASE_REST_URL && SUPABASE_PUBLIC_ANON_KEY
   );
+  const resolveSupabaseStoragePublicUrl = (objectPath) => {
+    const normalizedPath =
+      typeof objectPath === "string" ? objectPath.trim().replace(/^\\/+/, "") : "";
+
+    if (!normalizedPath || !SUPABASE_PUBLIC_URL || !SUPABASE_STORAGE_BUCKET) {
+      return null;
+    }
+
+    const encodedPath = normalizedPath
+      .split("/")
+      .map((segment) => encodeURIComponent(segment))
+      .join("/");
+
+    return SUPABASE_PUBLIC_URL.replace(/\\/+$/, "") +
+      "/storage/v1/object/public/" +
+      encodeURIComponent(SUPABASE_STORAGE_BUCKET) +
+      "/" +
+      encodedPath;
+  };
+  const resolveCommentAuthorPhotoURLForPayload = (profile) => {
+    const directPhotoURL =
+      typeof profile?.photoURL === "string" ? profile.photoURL.trim() : "";
+
+    if (directPhotoURL) {
+      return directPhotoURL;
+    }
+
+    return resolveSupabaseStoragePublicUrl(profile?.avatarPath);
+  };
   const SUPABASE_PROFILE_SELECT = [
     "auth_user_id",
     "firebase_uid",
@@ -3225,14 +3255,15 @@
         mediaSize: commentMedia?.mediaSize ?? null,
         createdAt,
       });
+      const authorPhotoURL = resolveCommentAuthorPhotoURLForPayload(authorSnapshot);
       const displayCommentPayload = {
         ...persistedCommentPayload,
-        authorPhotoURL: authorSnapshot?.photoURL ?? null,
+        authorPhotoURL,
         authorAccentRole: pickCommentAccentRole(authorSnapshot?.roles ?? [], "user"),
       };
       const photoCommentPayload = {
         ...persistedCommentPayload,
-        authorPhotoURL: authorSnapshot?.photoURL ?? null,
+        authorPhotoURL,
       };
       const timestampCommentPayload = {
         ...stripNullishFields({
