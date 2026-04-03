@@ -1047,6 +1047,57 @@
       (left, right) =>
         new Date(right.createdAt ?? 0).getTime() - new Date(left.createdAt ?? 0).getTime()
     );
+  const mergeProfileSnapshotWithFallback = (primaryProfile, fallbackProfile) => {
+    if (!primaryProfile) {
+      return fallbackProfile ?? null;
+    }
+
+    if (!fallbackProfile) {
+      return primaryProfile;
+    }
+
+    return {
+      ...primaryProfile,
+      photoURL: primaryProfile.photoURL ?? fallbackProfile.photoURL ?? null,
+      avatarPath: primaryProfile.avatarPath ?? fallbackProfile.avatarPath ?? null,
+      avatarType: primaryProfile.avatarType ?? fallbackProfile.avatarType ?? null,
+      avatarSize: primaryProfile.avatarSize ?? fallbackProfile.avatarSize ?? null,
+    };
+  };
+  const mergeProfileCommentsWithFallback = (primaryComments, fallbackComments) => {
+    if (!Array.isArray(primaryComments) || !primaryComments.length) {
+      return Array.isArray(fallbackComments) ? fallbackComments : [];
+    }
+
+    if (!Array.isArray(fallbackComments) || !fallbackComments.length) {
+      return primaryComments;
+    }
+
+    const mergedCommentsById = new Map(
+      primaryComments.map((comment) => [comment.id, comment])
+    );
+
+    fallbackComments.forEach((fallbackComment) => {
+      const existingComment = mergedCommentsById.get(fallbackComment.id);
+
+      if (!existingComment) {
+        mergedCommentsById.set(fallbackComment.id, fallbackComment);
+        return;
+      }
+
+      mergedCommentsById.set(fallbackComment.id, {
+        ...existingComment,
+        authorPhotoURL: existingComment.authorPhotoURL ?? fallbackComment.authorPhotoURL ?? null,
+        authorAccentRole: existingComment.authorAccentRole ?? fallbackComment.authorAccentRole ?? null,
+        mediaURL: existingComment.mediaURL ?? fallbackComment.mediaURL ?? null,
+        mediaType: existingComment.mediaType ?? fallbackComment.mediaType ?? null,
+        mediaPath: existingComment.mediaPath ?? fallbackComment.mediaPath ?? null,
+        mediaSize: existingComment.mediaSize ?? fallbackComment.mediaSize ?? null,
+      });
+    });
+
+    return sortProfileComments(Array.from(mergedCommentsById.values()));
+  };
   const enrichProfileCommentsWithAuthors = async (comments) => {
     const commentsWithAuthors = [...comments];
     const authorByUid = new Map();
@@ -2905,9 +2956,17 @@
           }
 
           if (!publicReadDenied) {
-            return cacheResolvedProfileSnapshot(
-              profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null
-            );
+            const firestoreProfile =
+              profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
+
+            if (firestoreProfile && !hasProfileAvatarData(firestoreProfile)) {
+              const supabaseFallbackProfile = await fetchSupabaseProfileById(profileId);
+              return cacheResolvedProfileSnapshot(
+                mergeProfileSnapshotWithFallback(firestoreProfile, supabaseFallbackProfile)
+              );
+            }
+
+            return cacheResolvedProfileSnapshot(firestoreProfile);
           }
 
           await waitForAuthStateSettlement();
@@ -2915,9 +2974,17 @@
           if (auth.currentUser && !auth.currentUser.isAnonymous) {
             try {
               profileDoc = await readProfileDoc();
-              return cacheResolvedProfileSnapshot(
-                profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null
-              );
+              const firestoreProfile =
+                profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
+
+              if (firestoreProfile && !hasProfileAvatarData(firestoreProfile)) {
+                const supabaseFallbackProfile = await fetchSupabaseProfileById(profileId);
+                return cacheResolvedProfileSnapshot(
+                  mergeProfileSnapshotWithFallback(firestoreProfile, supabaseFallbackProfile)
+                );
+              }
+
+              return cacheResolvedProfileSnapshot(firestoreProfile);
             } catch (error) {
               if (!isPermissionDeniedError(error)) {
                 throw error;
@@ -2950,9 +3017,17 @@
             throw error;
           }
 
-          return cacheResolvedProfileSnapshot(
-            profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null
-          );
+          const firestoreProfile =
+            profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
+
+          if (firestoreProfile && !hasProfileAvatarData(firestoreProfile)) {
+            const supabaseFallbackProfile = await fetchSupabaseProfileById(profileId);
+            return cacheResolvedProfileSnapshot(
+              mergeProfileSnapshotWithFallback(firestoreProfile, supabaseFallbackProfile)
+            );
+          }
+
+          return cacheResolvedProfileSnapshot(firestoreProfile);
         }
       );
     };
@@ -3004,9 +3079,17 @@
           }
 
           if (!publicReadDenied) {
-            return cacheResolvedProfileSnapshot(
-              profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null
-            );
+            const firestoreProfile =
+              profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
+
+            if (firestoreProfile && !hasProfileAvatarData(firestoreProfile)) {
+              const supabaseFallbackProfile = await fetchSupabaseProfileByAuthorName(normalizedAuthorName);
+              return cacheResolvedProfileSnapshot(
+                mergeProfileSnapshotWithFallback(firestoreProfile, supabaseFallbackProfile)
+              );
+            }
+
+            return cacheResolvedProfileSnapshot(firestoreProfile);
           }
 
           await waitForAuthStateSettlement();
@@ -3014,9 +3097,17 @@
           if (auth.currentUser && !auth.currentUser.isAnonymous) {
             try {
               profileDoc = await readProfileDoc();
-              return cacheResolvedProfileSnapshot(
-                profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null
-              );
+              const firestoreProfile =
+                profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
+
+              if (firestoreProfile && !hasProfileAvatarData(firestoreProfile)) {
+                const supabaseFallbackProfile = await fetchSupabaseProfileByAuthorName(normalizedAuthorName);
+                return cacheResolvedProfileSnapshot(
+                  mergeProfileSnapshotWithFallback(firestoreProfile, supabaseFallbackProfile)
+                );
+              }
+
+              return cacheResolvedProfileSnapshot(firestoreProfile);
             } catch (error) {
               if (!isPermissionDeniedError(error)) {
                 throw error;
@@ -3049,9 +3140,17 @@
             throw error;
           }
 
-          return cacheResolvedProfileSnapshot(
-            profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null
-          );
+          const firestoreProfile =
+            profileDoc ? toStoredUserSnapshot(profileDoc.id, profileDoc.data()) : null;
+
+          if (firestoreProfile && !hasProfileAvatarData(firestoreProfile)) {
+            const supabaseFallbackProfile = await fetchSupabaseProfileByAuthorName(normalizedAuthorName);
+            return cacheResolvedProfileSnapshot(
+              mergeProfileSnapshotWithFallback(firestoreProfile, supabaseFallbackProfile)
+            );
+          }
+
+          return cacheResolvedProfileSnapshot(firestoreProfile);
         }
       );
     };
@@ -3137,7 +3236,10 @@
       };
 
       try {
-        return await readComments();
+        const firestoreComments = await readComments();
+        const supabaseComments = await fetchSupabaseCommentsByProfileId(profileId).catch(() => null);
+
+        return mergeProfileCommentsWithFallback(firestoreComments, supabaseComments);
       } catch (error) {
         if (!isPermissionDeniedError(error)) {
           throw error;
