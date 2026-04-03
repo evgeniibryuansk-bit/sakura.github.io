@@ -80,6 +80,7 @@ const SOCIAL_LINKS: SocialLinkDefinition[] = [
   {
     id: "youtube",
     label: "YouTube",
+    href: "https://www.youtube.com/@Sakura-cheat",
     icon: <YoutubeIcon />,
   },
   {
