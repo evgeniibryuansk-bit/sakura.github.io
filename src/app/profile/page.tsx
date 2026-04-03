@@ -2147,7 +2147,7 @@ export default function ProfilePage() {
                   style={roleBadgeTextStyle}
                   className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1 text-[10px] font-bold text-[#ffb7c5]"
                 >
-                  ID: {previewProfile.profileId}
+                  UID: {previewProfile.profileId}
                 </span>
               ) : null}
             </span>
@@ -4206,14 +4206,14 @@ export default function ProfilePage() {
                       {hasUsername ? <p className="mt-1 text-sm font-medium text-[#c7d4cc]">@{activeProfile.login}</p> : isOwner ? <p className="mt-1 text-sm text-gray-500">Login not set yet.</p> : null}
                       {typeof activeProfile.profileId === "number" ? <p className="mt-1 flex max-w-full items-center gap-2 text-[11px] text-[#b78a95]">
                         <span aria-hidden="true" className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff9fbd] shadow-[0_0_10px_rgba(255,159,189,0.7)]" />
-                        <span className="truncate">ID: {activeProfile.profileId}</span>
+                        <span className="truncate">UID: {activeProfile.profileId}</span>
                       </p> : null}
                       <p className={`${typeof activeProfile.profileId === "number" ? "mt-0.5" : "mt-1"} flex max-w-full items-center gap-2 text-[11px] text-[#b78a95]`}>
                         <span aria-hidden="true" className="inline-flex h-1.5 w-1.5 shrink-0 rounded-full bg-[#ff9fbd] shadow-[0_0_10px_rgba(255,159,189,0.7)]" />
                         <span className="truncate">Account created {formatTime(activeProfile.creationTime)}</span>
                       </p>
                     </div>
-                    <div className="mt-3 flex flex-wrap items-center gap-3">
+                    <div className="mt-[14px] flex flex-wrap items-center gap-3">
                       {profileRoles.map((role) => <span key={role} title={roleBadgeLabel(role)} style={{ ...roleBadgeStyle(role), ...roleBadgeTextStyle }} className="inline-flex min-h-[26px] shrink-0 items-center whitespace-nowrap rounded-full border px-3.5 py-1 text-[10px] font-bold"><span aria-hidden="true" className="inline-flex items-center">{renderRoleBadgeText(role)}</span></span>)}
                     </div>
                   </div>
