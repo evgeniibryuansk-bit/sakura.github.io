@@ -9,6 +9,8 @@ import { AvatarMedia } from "./avatar-media";
 import { HeaderSocialLinks } from "./header-social-links";
 import { SiteOnlineBadge } from "./site-online-badge";
 import { readCachedAuthSnapshot } from "@/lib/auth-snapshot-cache";
+import { writeCachedProfileSnapshot } from "@/lib/profile-cache";
+import { writeCachedProfileComments } from "@/lib/profile-comments-cache";
 import { readCachedSiteOnlineCount, writeCachedSiteOnlineCount } from "@/lib/site-online-cache";
 
 type ShowcaseSlide = {
@@ -776,6 +778,8 @@ function HeaderAuth() {
   const isVerificationLockedUser = isEmailVerificationLocked(visibleUser);
   const isGoogleSetupFlowActive = requiresGoogleAccountCompletion(visibleUser);
   const currentUserId = visibleUser?.uid ?? null;
+  const prefetchedProfileIdsRef = useRef<Set<number>>(new Set());
+  const prefetchingProfileIdsRef = useRef<Set<number>>(new Set());
 
   useEffect(() => {
     if (typeof window === "undefined") {
@@ -887,6 +891,83 @@ function HeaderAuth() {
       })
       .catch(() => {});
   }, [currentUserId]);
+
+  useEffect(() => {
+    if (
+      typeof window === "undefined" ||
+      !authReady ||
+      !visibleUser ||
+      typeof visibleUser.profileId !== "number" ||
+      visibleUser.profileId <= 0 ||
+      !window.sakuraFirebaseAuth
+    ) {
+      return;
+    }
+
+    const bridge = window.sakuraFirebaseAuth as (FirebaseAuthBridge & {
+      getProfileComments?: (
+        profileId: number
+      ) => Promise<Array<{ id: string; pending?: boolean }>>;
+    }) | null;
+    const getProfileComments = bridge?.getProfileComments;
+    if (!bridge || typeof getProfileComments !== "function") {
+      return;
+    }
+    const candidateProfileIds = [
+      visibleUser.profileId - 1,
+      visibleUser.profileId,
+      visibleUser.profileId + 1,
+    ].filter((profileId) => profileId > 0);
+    const toCacheableComments = (
+      comments: Array<{ id: string; pending?: boolean }>
+    ) =>
+      comments.filter(
+        (comment) =>
+          comment &&
+          typeof comment.id === "string" &&
+          comment.id &&
+          comment.pending !== true
+      );
+
+    candidateProfileIds.forEach((profileId) => {
+      if (
+        prefetchedProfileIdsRef.current.has(profileId) ||
+        prefetchingProfileIdsRef.current.has(profileId)
+      ) {
+        return;
+      }
+
+      prefetchingProfileIdsRef.current.add(profileId);
+
+      void (async () => {
+        let hasPrefetchedPayload = false;
+
+        try {
+          const prefetchedProfile = await bridge.getProfileById(profileId);
+
+          if (prefetchedProfile && typeof prefetchedProfile.profileId === "number") {
+            writeCachedProfileSnapshot(prefetchedProfile);
+            hasPrefetchedPayload = true;
+          }
+        } catch {}
+
+        try {
+          const prefetchedComments = await getProfileComments(profileId);
+
+          if (Array.isArray(prefetchedComments) && prefetchedComments.length > 0) {
+            writeCachedProfileComments(profileId, toCacheableComments(prefetchedComments));
+            hasPrefetchedPayload = true;
+          }
+        } catch {}
+
+        prefetchingProfileIdsRef.current.delete(profileId);
+
+        if (hasPrefetchedPayload) {
+          prefetchedProfileIdsRef.current.add(profileId);
+        }
+      })();
+    });
+  }, [authReady, visibleUser?.uid, visibleUser?.profileId]);
 
   useEffect(() => {
     if (!isModalOpen && !isVerificationModalOpen) {
