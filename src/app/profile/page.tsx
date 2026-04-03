@@ -4366,12 +4366,16 @@ export default function ProfilePage() {
                                 aria-label={isCommentActionsMenuOpen ? "Close comment actions" : "Open comment actions"}
                                 aria-expanded={isCommentActionsMenuOpen}
                                 disabled={isCommentActionMenuBusy}
-                                className="inline-flex h-8 w-8 items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] text-[#ffb7c5] transition hover:border-[#ffb7c5]/45 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                                className={`inline-flex h-7 w-7 items-center justify-center rounded-full border transition disabled:cursor-not-allowed disabled:opacity-60 ${
+                                  isCommentActionsMenuOpen
+                                    ? "border-[#ffb7c5]/45 bg-[#1a1014] text-[#ffb7c5] shadow-[0_0_16px_rgba(255,183,197,0.16)]"
+                                    : "border-[#2f2328] bg-[#0f0a0d]/90 text-[#b78a95] hover:border-[#ffb7c5]/38 hover:text-[#ffb7c5]"
+                                }`}
                               >
-                                <span className="inline-flex items-center gap-1">
-                                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
-                                  <span className="h-1.5 w-1.5 rounded-full bg-current" />
+                                <span className="inline-flex items-center gap-0.5">
+                                  <span className="h-1 w-1 rounded-full bg-current" />
+                                  <span className="h-1 w-1 rounded-full bg-current" />
+                                  <span className="h-1 w-1 rounded-full bg-current" />
                                 </span>
                               </button>
                               {isCommentActionsMenuOpen ? <div className="absolute right-0 top-0 z-20 translate-x-[calc(100%+8px)] rounded-[16px] border border-[#3a2a31] bg-[#0f0a0d] p-2 shadow-[0_0_24px_rgba(255,183,197,0.12)] max-[900px]:right-0 max-[900px]:top-full max-[900px]:mt-2 max-[900px]:translate-x-0">
