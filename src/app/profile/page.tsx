@@ -1459,6 +1459,29 @@ export default function ProfilePage() {
       setProfile(visibleCurrentUser);
       setProfileError(null);
       setIsProfileLoading(false);
+      if (
+        visibleCurrentUser?.profileId &&
+        runtime.sakuraFirebaseAuth &&
+        !resolveProfileAvatarUrl(visibleCurrentUser)
+      ) {
+        void runtime.sakuraFirebaseAuth
+          .getProfileById(visibleCurrentUser.profileId)
+          .then((snapshot) => {
+            if (!snapshot) {
+              return;
+            }
+
+            setProfile(snapshot);
+            if (
+              visibleCurrentUser &&
+              snapshot.uid === visibleCurrentUser.uid
+            ) {
+              setCurrentUser(snapshot);
+            }
+            writeCachedProfileSnapshot(snapshot);
+          })
+          .catch(() => {});
+      }
       if (visibleCurrentUser?.profileId && requestedId === null && window.location.pathname !== profilePath(visibleCurrentUser.profileId)) {
         window.history.replaceState(null, "", profilePath(visibleCurrentUser.profileId));
       }

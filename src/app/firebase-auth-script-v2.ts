@@ -139,6 +139,14 @@
         ? details.bannedAt
         : null
       : fallbackBannedAt ?? null;
+  const hasProfileAvatarData = (snapshot) =>
+    Boolean(
+      snapshot &&
+        (
+          (typeof snapshot.photoURL === "string" && snapshot.photoURL.trim()) ||
+          (typeof snapshot.avatarPath === "string" && snapshot.avatarPath.trim())
+        )
+    );
 
   const readCachedAuthSnapshot = () => {
     try {
@@ -2810,7 +2818,9 @@
         !window.sakuraCurrentUserSnapshot.isAnonymous &&
         window.sakuraCurrentUserSnapshot.profileId === profileId
       ) {
-        return window.sakuraCurrentUserSnapshot;
+        if (hasProfileAvatarData(window.sakuraCurrentUserSnapshot)) {
+          return window.sakuraCurrentUserSnapshot;
+        }
       }
 
       const cachedProfileSnapshot = readRuntimeCacheEntry(
