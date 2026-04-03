@@ -1206,7 +1206,9 @@
           typeof authorDetails?.profileId === "number"
             ? authorDetails.profileId
             : comment.authorProfileId,
-        authorPhotoURL: resolvePhotoURL(authorDetails, comment.authorPhotoURL),
+        authorPhotoURL:
+          resolveCommentAuthorPhotoURLForPayload(authorDetails) ??
+          comment.authorPhotoURL,
         authorAccentRole: pickCommentAccentRole(
           authorDetails?.roles ?? [],
           comment.authorAccentRole
