@@ -4722,7 +4722,10 @@ export default function ProfilePage() {
                     </button>
                   </div>
 
-                  <form onSubmit={handleHeaderProfileSearchSubmit} className="mt-4 flex flex-col gap-3 sm:flex-row sm:items-center">
+                  <form
+                    onSubmit={handleHeaderProfileSearchSubmit}
+                    className="mt-4 mx-auto flex w-full max-w-[640px] flex-col gap-3 sm:flex-row sm:items-center"
+                  >
                     <label className="min-w-0 flex-1">
                       <span className="sr-only">Search profiles</span>
                       <input
@@ -4818,7 +4821,7 @@ export default function ProfilePage() {
                 <a
                   href={profilePath(previousProfileId)}
                   aria-label="Open previous account"
-                  className="absolute -left-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-[#2b1b1e]/80 bg-transparent text-base text-[#ffb7c5]/88 transition duration-200 hover:border-[#ffb7c5]/45 hover:bg-[#1a1012] hover:text-white hover:shadow-[0_0_16px_rgba(255,183,197,0.1)] lg:inline-flex"
+                  className="absolute -left-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-transparent bg-transparent text-base text-[#ffb7c5]/88 transition duration-200 hover:border-[#ffb7c5]/45 hover:bg-[#1a1012] hover:text-white hover:shadow-[0_0_16px_rgba(255,183,197,0.1)] lg:inline-flex"
                 >
                   <svg
                     aria-hidden="true"
@@ -4836,7 +4839,7 @@ export default function ProfilePage() {
               ) : (
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute -left-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-[#2b1b1e]/45 bg-transparent text-base text-[#ffb7c5]/38 lg:inline-flex"
+                  className="pointer-events-none absolute -left-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-transparent bg-transparent text-base text-[#ffb7c5]/38 lg:inline-flex"
                 >
                   <svg
                     aria-hidden="true"
@@ -4858,7 +4861,7 @@ export default function ProfilePage() {
                 <a
                   href={profilePath(nextProfileId)}
                   aria-label="Open next account"
-                  className="absolute -right-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-[#2b1b1e]/80 bg-transparent text-base text-[#ffb7c5]/88 transition duration-200 hover:border-[#ffb7c5]/45 hover:bg-[#1a1012] hover:text-white hover:shadow-[0_0_16px_rgba(255,183,197,0.1)] lg:inline-flex"
+                  className="absolute -right-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-transparent bg-transparent text-base text-[#ffb7c5]/88 transition duration-200 hover:border-[#ffb7c5]/45 hover:bg-[#1a1012] hover:text-white hover:shadow-[0_0_16px_rgba(255,183,197,0.1)] lg:inline-flex"
                 >
                   <svg
                     aria-hidden="true"
@@ -4876,7 +4879,7 @@ export default function ProfilePage() {
               ) : (
                 <span
                   aria-hidden="true"
-                  className="pointer-events-none absolute -right-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-[#2b1b1e]/45 bg-transparent text-base text-[#ffb7c5]/38 lg:inline-flex"
+                  className="pointer-events-none absolute -right-[58px] top-[24px] z-30 hidden h-11 w-11 items-center justify-center rounded-full border border-transparent bg-transparent text-base text-[#ffb7c5]/38 lg:inline-flex"
                 >
                   <svg
                     aria-hidden="true"
