@@ -2306,7 +2306,14 @@ export default function ProfilePage() {
     subscriptionSummary.status === "active"
       ? t("Active", "РђРєС‚РёРІРЅР°")
       : t("Inactive", "РќРµР°РєС‚РёРІРЅР°");
-  const shouldShowSubscriptionDetails = isOwner;
+  const isOwnProfileViewById = Boolean(
+    visibleCurrentUser &&
+      typeof visibleCurrentUser.profileId === "number" &&
+      activeProfile &&
+      typeof activeProfile.profileId === "number" &&
+      visibleCurrentUser.profileId === activeProfile.profileId
+  );
+  const shouldShowSubscriptionDetails = isOwner && isOwnProfileViewById;
   const shouldShowVerificationBanner = Boolean(
     isOwner &&
       !activeProfile?.isBanned &&
