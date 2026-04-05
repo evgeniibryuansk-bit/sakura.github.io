@@ -1,8 +1,6 @@
 name: Mirror Firebase To Supabase
 
 on:
-  schedule:
-    - cron: "*/10 * * * *"
   workflow_dispatch:
     inputs:
       dry_run:
