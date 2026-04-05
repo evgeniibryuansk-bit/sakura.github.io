@@ -13,7 +13,7 @@ type SocialLinkDefinition = {
   icon: ReactNode;
 };
 
-const ICON_BASE_CLASS = "block h-[17px] w-[17px] shrink-0 flex-none fill-current text-current";
+const ICON_BASE_CLASS = "block h-[15px] w-[15px] shrink-0 flex-none fill-current text-current";
 
 function VkIcon() {
   return (
@@ -98,16 +98,16 @@ export function HeaderSocialLinks({
   showLabel = false,
 }: HeaderSocialLinksProps) {
   return (
-    <div className="flex items-center gap-3">
+    <div className="flex items-center gap-2">
       {showLabel ? (
         <span className="text-[10px] font-mono uppercase tracking-[0.24em] text-[#ffb7c5]">
           Socials:
         </span>
       ) : null}
-      <div className="flex items-center gap-2 rounded-[16px] border border-[#3a2329] bg-[#120d10] px-3 py-1.5 shadow-[0_0_24px_rgba(255,183,197,0.08)]">
+      <div className="flex items-center gap-1.5 rounded-[14px] border border-[#3a2329] bg-[#120d10] px-2.5 py-1 shadow-[0_0_24px_rgba(255,183,197,0.08)]">
         {SOCIAL_LINKS.map((link) => {
           const commonClassName =
-            "inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md align-middle leading-none text-[#ffb7c5] transition duration-200";
+            "inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-md align-middle leading-none text-[#ffb7c5] transition duration-200";
 
           if (!link.href) {
             return (
