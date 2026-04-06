@@ -2312,10 +2312,12 @@ export default function ProfilePage() {
   const subscriptionSummary = {
     title: t("Cheat Access", "Доступ к читу"),
     status: subscriptionStatus,
-    description: t(
-      "Buy a subscription to unlock all cheat features in the game.",
-      "Купите подписку, чтобы разблокировать все возможности чита в игре."
-    ),
+    description: hasActiveSubscriptionRole
+      ? t("Enjoy using it.", "Sakura Cheat Dota 2")
+      : t(
+          "Buy a subscription to unlock all cheat features in the game.",
+          "Купите подписку, чтобы разблокировать все возможности чита в игре."
+        ),
   };
   const subscriptionBadgeStyle: CSSProperties =
     subscriptionSummary.status === "active"
