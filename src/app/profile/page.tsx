@@ -362,7 +362,7 @@ const resolveExternalProfileThemeSongSelection = (
 
     if (supportedEntityTypes.has(entityType) && entityId) {
       const sourceUrl = `https://open.spotify.com/${entityType}/${entityId}`;
-      const embedUrl = `https://open.spotify.com/embed/${entityType}/${entityId}?utm_source=generator&autoplay=1`;
+      const embedUrl = `https://open.spotify.com/embed/${entityType}/${entityId}?utm_source=generator`;
       const title =
         entityType === "track"
           ? "Spotify Track"
@@ -2406,7 +2406,7 @@ useEffect(() => {
   const profileThemeActiveEmbedUrl =
     profileThemeUsesEmbeddedPlayer && profileThemeEmbedUrl
       ? profileThemeEmbedProvider === "spotify" && profileThemeEmbedReloadToken > 0
-        ? `${profileThemeEmbedUrl}${profileThemeEmbedUrl.includes("?") ? "&" : "?"}sakura_play=${profileThemeEmbedReloadToken}`
+        ? `${profileThemeEmbedUrl}${profileThemeEmbedUrl.includes("?") ? "&" : "?"}autoplay=1&sakura_play=${profileThemeEmbedReloadToken}`
         : profileThemeEmbedUrl
       : null;
   const profileThemeDisplayedDuration = profileThemeUsesEmbeddedPlayer
@@ -5793,7 +5793,7 @@ useEffect(() => {
 
           if (frame && profileThemeEmbedUrl) {
             const joiner = profileThemeEmbedUrl.includes("?") ? "&" : "?";
-            frame.src = `${profileThemeEmbedUrl}${joiner}sakura_play=${nextToken}`;
+            frame.src = `${profileThemeEmbedUrl}${joiner}autoplay=1&sakura_play=${nextToken}`;
           }
         }
         return;
