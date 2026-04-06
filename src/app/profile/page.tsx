@@ -2315,7 +2315,7 @@ export default function ProfilePage() {
     title: "",
     status: subscriptionStatus,
     description: hasActiveSubscriptionRole
-      ? t("Enjoy using it.", "Sakura Cheat Dota 2")
+      ? t("Sakura Cheat Dota 2", "Sakura Cheat Dota 2")
       : t(
           "Buy a subscription to unlock all cheat features in the game.",
           "Купите подписку, чтобы разблокировать все возможности чита в игре."
