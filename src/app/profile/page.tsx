@@ -215,7 +215,7 @@ const SITE_ONLINE_COUNT_REFRESH_DEBOUNCE_MS = 280;
 const PROFILE_NAV_SCAN_LIMIT = 300;
 const PROFILE_NAV_PREFETCH_PER_SIDE = 2;
 const PROFILE_THEME_TIMELINE_UPDATE_STEP_SECONDS = 0.24;
-const PROFILE_THEME_EMBED_FALLBACK_DURATION_SECONDS = 60 * 60;
+const PROFILE_THEME_EMBED_FALLBACK_DURATION_SECONDS = 5 * 60;
 const FUNPAY_SUBSCRIPTION_URL = "https://funpay.com/lots/offer?id=67099133";
 const FUNPAY_ICON_URL = "https://funpay.com/favicon.ico";
 const FUNPAY_DONATION_TRACK_SRC = `${repoBasePath}/music/kto-to-mne-zadonatil.mp3`;
@@ -2398,6 +2398,12 @@ useEffect(() => {
       ? `${profileThemeProfileId}:${profileThemeSelection.key}`
       : null;
   const shouldPlayProfileThemeSong = Boolean(profileThemeSongSrc || profileThemeEmbedUrl);
+  const profileThemeDisplayedDuration = profileThemeUsesEmbeddedPlayer
+    ? PROFILE_THEME_EMBED_FALLBACK_DURATION_SECONDS
+    : profileThemeDuration;
+  const profileThemeDisplayedCurrentTime = profileThemeUsesEmbeddedPlayer
+    ? Math.min(profileThemeCurrentTime, PROFILE_THEME_EMBED_FALLBACK_DURATION_SECONDS)
+    : Math.min(profileThemeCurrentTime, profileThemeDuration || profileThemeCurrentTime);
   useEffect(() => {
     const audio = profileThemeAudioRef.current;
 
@@ -5780,6 +5786,19 @@ useEffect(() => {
         aria-hidden="true"
         className="hidden"
       />
+      {profileThemeUsesEmbeddedPlayer && profileThemeEmbedUrl ? (
+        <iframe
+          ref={profileThemeEmbedFrameRef}
+          src={profileThemeEmbedUrl}
+          title={profileThemeTitle ?? "Profile Theme"}
+          loading="lazy"
+          tabIndex={-1}
+          aria-hidden="true"
+          referrerPolicy="strict-origin-when-cross-origin"
+          allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
+          className="pointer-events-none fixed left-0 top-0 h-0 w-0 opacity-0"
+        />
+      ) : null}
       <div className="mx-auto max-w-6xl">
         <div className="mb-8 flex flex-col gap-4">
           <div className="relative">
@@ -6574,19 +6593,11 @@ useEffect(() => {
                       {profileThemeIsPlaying ? "Playing" : "Paused"}
                     </span>
                   </div>
-                  {profileThemeUsesEmbeddedPlayer && profileThemeEmbedUrl ? (
-                    <div className="mt-4 overflow-hidden rounded-[20px] border border-[#2a181d] bg-[linear-gradient(180deg,rgba(18,11,14,0.96)_0%,rgba(11,11,12,0.96)_100%)] p-1.5 shadow-[inset_0_1px_0_rgba(255,183,197,0.04)]">
-                      <iframe
-                        ref={profileThemeEmbedFrameRef}
-                        src={profileThemeEmbedUrl}
-                        title={profileThemeTitle ?? "Profile Theme"}
-                        loading="lazy"
-                        referrerPolicy="strict-origin-when-cross-origin"
-                        allow="autoplay; clipboard-write; encrypted-media; fullscreen; picture-in-picture"
-                        allowFullScreen
-                        style={{ height: Math.min(profileThemeEmbedHeight, 168) }}
-                        className="w-full rounded-[16px] border-0 bg-black"
-                      />
+                  {profileThemeUsesEmbeddedPlayer ? (
+                    <div className="mt-4 rounded-[20px] border border-[#2a181d] bg-[linear-gradient(180deg,rgba(18,11,14,0.96)_0%,rgba(11,11,12,0.96)_100%)] px-3 py-2.5 shadow-[inset_0_1px_0_rgba(255,183,197,0.04)]">
+                      <p className="text-[10px] font-medium uppercase tracking-[0.16em] text-gray-400">
+                        Source: {profileThemeTitle ?? "External"}
+                      </p>
                       {profileThemeSourceUrl ? (
                         <a
                           href={profileThemeSourceUrl}
@@ -6617,20 +6628,20 @@ useEffect(() => {
                       </button>
                       <div className="min-w-0 flex-1">
                         <div className="flex items-center justify-between gap-3 text-[10px] font-medium text-gray-400">
-                          <span>{formatAudioClock(profileThemeCurrentTime)}</span>
-                          <span>{formatAudioClock(profileThemeDuration)}</span>
+                          <span>{formatAudioClock(profileThemeDisplayedCurrentTime)}</span>
+                          <span>{formatAudioClock(profileThemeDisplayedDuration)}</span>
                         </div>
                         <input
                           type="range"
                           min={0}
-                          max={profileThemeDuration > 0 ? profileThemeDuration : 0}
+                          max={profileThemeDisplayedDuration > 0 ? profileThemeDisplayedDuration : 0}
                           step={0.1}
-                          value={Math.min(profileThemeCurrentTime, profileThemeDuration || profileThemeCurrentTime)}
+                          value={profileThemeDisplayedCurrentTime}
                           onChange={handleProfileThemeSeek}
-                          disabled={profileThemeDuration <= 0}
+                          disabled={profileThemeDisplayedDuration <= 0}
                           style={buildMusicSliderStyle(
-                            Math.min(profileThemeCurrentTime, profileThemeDuration || profileThemeCurrentTime),
-                            profileThemeDuration > 0 ? profileThemeDuration : 1
+                            profileThemeDisplayedCurrentTime,
+                            profileThemeDisplayedDuration > 0 ? profileThemeDisplayedDuration : 1
                           )}
                           className={`mt-2 ${musicSliderClassName}`}
                         />
@@ -7158,6 +7169,7 @@ useEffect(() => {
     </main>
   );
 }
+
 
 
 
