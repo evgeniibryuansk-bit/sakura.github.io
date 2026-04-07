@@ -111,11 +111,8 @@ export const setPreferredUiLocale = (locale: UiLocale) => {
   emitLocaleChange();
 };
 
-const normalizeRuntimeUiLocale = (locale: UiLocale): UiLocale =>
-  locale === "ru" ? "en" : locale;
-
 export const resolveUiLocale = (): UiLocale =>
-  normalizeRuntimeUiLocale(readPreferredUiLocale() ?? detectUiLocale());
+  readPreferredUiLocale() ?? detectUiLocale();
 
 export const useUiLocale = () => {
   const [locale, setLocale] = useState<UiLocale>("en");
