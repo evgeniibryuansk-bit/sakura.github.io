@@ -1,4 +1,4 @@
-﻿"use client";
+"use client";
 
 import { useEffect, useMemo, useState } from "react";
 
@@ -75,7 +75,8 @@ const isWindowsPlatform = () => {
 export const detectUiLocale = (): UiLocale =>
   isWindowsPlatform() && hasRussianLanguage() ? "ru" : "en";
 
-export const translateByLocale = (locale: UiLocale, englishText: string, russianText: string) =>`r`n  locale === "ru" ? resolveRussianText(englishText, russianText) : englishText;
+export const translateByLocale = (locale: UiLocale, englishText: string, russianText: string) =>
+  locale === "ru" ? resolveRussianText(englishText, russianText) : englishText;
 
 export const readPreferredUiLocale = (): UiLocale | null => {
   if (typeof window === "undefined") {
@@ -110,7 +111,7 @@ export const setPreferredUiLocale = (locale: UiLocale) => {
   emitLocaleChange();
 };
 
-export const resolveUiLocale = (): UiLocale => readPreferredUiLocale() ?? detectUiLocale();
+const normalizeRuntimeUiLocale = (locale: UiLocale): UiLocale =>`r`n  locale === "ru" ? "en" : locale;`r`n`r`nexport const resolveUiLocale = (): UiLocale =>`r`n  normalizeRuntimeUiLocale(readPreferredUiLocale() ?? detectUiLocale());
 
 export const useUiLocale = () => {
   const [locale, setLocale] = useState<UiLocale>("en");
@@ -144,4 +145,5 @@ export const useLocaleText = () => {
 
   return { locale, t };
 };
+
 
