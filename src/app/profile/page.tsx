@@ -5483,6 +5483,52 @@ export default function ProfilePage() {
     }
   };
 
+  type SubscriptionUntilOffset = {
+    days?: number;
+    months?: number;
+    years?: number;
+  };
+
+  const applyAdminSubscriptionUntilOffset = (offset: SubscriptionUntilOffset) => {
+    if (hasLifetimeRole) {
+      return;
+    }
+
+    const parsedInputSubscriptionUntil = parseDateTimeLocalInputValue(adminSubscriptionUntilInput);
+    const parsedProfileSubscriptionUntil = resolveProfileSubscriptionUntil(activeProfile);
+    const now = new Date();
+
+    const baseDate = parsedInputSubscriptionUntil
+      ? new Date(parsedInputSubscriptionUntil)
+      : parsedProfileSubscriptionUntil
+        ? new Date(parsedProfileSubscriptionUntil)
+        : now;
+
+    if (Number.isNaN(baseDate.getTime())) {
+      setAdminSubscriptionUntilError("Could not resolve subscription end date.");
+      setAdminSubscriptionUntilSuccess(null);
+      return;
+    }
+
+    const nextDate = new Date(baseDate.getTime() < now.getTime() ? now : baseDate);
+
+    if (typeof offset.days === "number" && Number.isFinite(offset.days) && offset.days !== 0) {
+      nextDate.setDate(nextDate.getDate() + offset.days);
+    }
+
+    if (typeof offset.months === "number" && Number.isFinite(offset.months) && offset.months !== 0) {
+      nextDate.setMonth(nextDate.getMonth() + offset.months);
+    }
+
+    if (typeof offset.years === "number" && Number.isFinite(offset.years) && offset.years !== 0) {
+      nextDate.setFullYear(nextDate.getFullYear() + offset.years);
+    }
+
+    setAdminSubscriptionUntilInput(toDateTimeLocalInputValue(nextDate.toISOString()));
+    setAdminSubscriptionUntilError(null);
+    setAdminSubscriptionUntilSuccess(null);
+  };
+
   const handleAdminSubscriptionUntilSave = async () => {
     const bridge = getWindowState().sakuraFirebaseAuth;
 
@@ -7704,7 +7750,49 @@ export default function ProfilePage() {
                                 className="w-full rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55"
                               />
                             </label>
-                            <div className="mt-4 flex flex-wrap items-center gap-3">
+                            <div className="mt-4 flex flex-wrap items-center gap-2">
+                              <button
+                                type="button"
+                                onClick={() => applyAdminSubscriptionUntilOffset({ days: 1 })}
+                                disabled={isAdminSubscriptionUntilSaving || isAdminHwidResetting}
+                                className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {t("+1 Day", "+1 Day")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyAdminSubscriptionUntilOffset({ days: 3 })}
+                                disabled={isAdminSubscriptionUntilSaving || isAdminHwidResetting}
+                                className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {t("+3 Days", "+3 Days")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyAdminSubscriptionUntilOffset({ days: 7 })}
+                                disabled={isAdminSubscriptionUntilSaving || isAdminHwidResetting}
+                                className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {t("+1 Week", "+1 Week")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyAdminSubscriptionUntilOffset({ months: 1 })}
+                                disabled={isAdminSubscriptionUntilSaving || isAdminHwidResetting}
+                                className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {t("+1 Month", "+1 Month")}
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => applyAdminSubscriptionUntilOffset({ years: 1 })}
+                                disabled={isAdminSubscriptionUntilSaving || isAdminHwidResetting}
+                                className="inline-flex items-center justify-center rounded-full border border-[#3a2a31] bg-[#140d11] px-3 py-1.5 text-[10px] font-bold uppercase tracking-[0.16em] text-[#ffb7c5] transition hover:border-[#ffb7c5]/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {t("+1 Year", "+1 Year")}
+                              </button>
+                            </div>
+                            <div className="mt-3 flex flex-wrap items-center gap-3">
                               <button
                                 type="button"
                                 onClick={handleAdminSubscriptionUntilSave}
