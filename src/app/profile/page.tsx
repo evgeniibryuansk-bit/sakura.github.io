@@ -3059,7 +3059,7 @@ export default function ProfilePage() {
     : hasSubscriberRole
       ? t("Active Subscription", "Active Subscription")
       : hasTestPeriodRole
-        ? t("Test Period", "???????? ??????")
+        ? t("Test Period", "Test Period")
         : t("No Subscription", "No Subscription");
   const subscriptionSummary = {
     title: subscriptionPlanLabel,
@@ -4170,7 +4170,9 @@ export default function ProfilePage() {
     setAdminSubscriptionError(null);
     setAdminSubscriptionSuccess(null);
     setAdminSubscriptionUntilInput(
-      toDateTimeLocalInputValue(resolveProfileSubscriptionUntil(activeProfile))
+      hasRoleInSelection(activeProfile.roles, "lifetime")
+        ? ""
+        : toDateTimeLocalInputValue(resolveProfileSubscriptionUntil(activeProfile))
     );
     setAdminSubscriptionUntilError(null);
     setAdminSubscriptionUntilSuccess(null);
@@ -5312,6 +5314,9 @@ export default function ProfilePage() {
     }
 
     setAdminSubscriptionError(null);
+      setAdminSubscriptionUntilInput("");
+      setAdminSubscriptionUntilError(null);
+      setAdminSubscriptionUntilSuccess(null);
     setAdminSubscriptionSuccess(null);
     setIsAdminSubscriptionSaving(true);
 
@@ -6845,7 +6850,7 @@ export default function ProfilePage() {
                         {t("Lifetime", "Lifetime")}
                       </span> : null}
                       {hasTestPeriodRole ? <span style={{ ...subscriptionTestPeriodBadgeStyle, ...roleBadgeTextStyle }} className="inline-flex h-[24px] shrink-0 items-center rounded-full border px-3 text-[10px] font-bold leading-none">
-                        {t("Test Period", "???????? ??????")}
+                        {t("Test Period", "Test Period")}
                       </span> : null}
                     </div>
                   </div>
@@ -7635,30 +7640,38 @@ export default function ProfilePage() {
                       <div className="mt-4">
                         <p className="text-xs uppercase tracking-[0.22em] text-gray-500">{t("Sub Until", "Sub Until")}</p>
                         <p className="mt-2 text-sm font-semibold text-white">{profileSubscriptionUntilLabel}</p>
-                        <label className="mt-3 block">
-                          <input
-                            type="datetime-local"
-                            value={adminSubscriptionUntilInput}
-                            onChange={(event) => {
-                              setAdminSubscriptionUntilInput(event.target.value);
-                              setAdminSubscriptionUntilError(null);
-                              setAdminSubscriptionUntilSuccess(null);
-                            }}
-                            className="w-full rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55"
-                          />
-                        </label>
-                        <div className="mt-4 flex flex-wrap items-center gap-3">
-                          <button
-                            type="button"
-                            onClick={handleAdminSubscriptionUntilSave}
-                            disabled={isAdminSubscriptionUntilSaving || isAdminHwidResetting}
-                            className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60"
-                          >
-                            {isAdminSubscriptionUntilSaving ? t("Saving...", "Сохранение...") : t("Save Sub Until", "Save Sub Until")}
-                          </button>
-                        </div>
-                        {adminSubscriptionUntilError ? <p className="mt-3 text-xs leading-relaxed text-[#ff9aa9]">{adminSubscriptionUntilError}</p> : null}
-                        {adminSubscriptionUntilSuccess ? <p className="mt-3 text-xs leading-relaxed text-[#8ce5b2]">{adminSubscriptionUntilSuccess}</p> : null}
+                        {hasLifetimeRole ? (
+                          <p className="mt-3 text-xs leading-relaxed text-gray-500">
+                            {t("Lifetime subscription has no end date.", "Lifetime subscription has no end date.")}
+                          </p>
+                        ) : (
+                          <>
+                            <label className="mt-3 block">
+                              <input
+                                type="datetime-local"
+                                value={adminSubscriptionUntilInput}
+                                onChange={(event) => {
+                                  setAdminSubscriptionUntilInput(event.target.value);
+                                  setAdminSubscriptionUntilError(null);
+                                  setAdminSubscriptionUntilSuccess(null);
+                                }}
+                                className="w-full rounded-2xl border border-[#232323] bg-[#090909] px-4 py-3 text-sm text-white outline-none transition placeholder:text-gray-600 focus:border-[#ffb7c5]/55"
+                              />
+                            </label>
+                            <div className="mt-4 flex flex-wrap items-center gap-3">
+                              <button
+                                type="button"
+                                onClick={handleAdminSubscriptionUntilSave}
+                                disabled={isAdminSubscriptionUntilSaving || isAdminHwidResetting}
+                                className="inline-flex items-center justify-center rounded-full border border-[#ffb7c5]/30 bg-[#ffb7c5] px-4 py-2 text-[11px] font-bold uppercase tracking-[0.18em] text-black transition hover:bg-[#ffc8d3] disabled:cursor-not-allowed disabled:opacity-60"
+                              >
+                                {isAdminSubscriptionUntilSaving ? t("Saving...", "Saving...") : t("Save Sub Until", "Save Sub Until")}
+                              </button>
+                            </div>
+                            {adminSubscriptionUntilError ? <p className="mt-3 text-xs leading-relaxed text-[#ff9aa9]">{adminSubscriptionUntilError}</p> : null}
+                            {adminSubscriptionUntilSuccess ? <p className="mt-3 text-xs leading-relaxed text-[#8ce5b2]">{adminSubscriptionUntilSuccess}</p> : null}
+                          </>
+                        )}
                       </div>
                       <div className="mt-6">
                         <p className="text-xs uppercase tracking-[0.22em] text-gray-500">HWID</p>
